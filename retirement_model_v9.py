@@ -67,16 +67,15 @@ SCENARIOS_TO_RUN = [
 def load_data():
     try:
         config_df = pd.read_csv(INPUT_DIR / 'config.csv').set_index('parameter')['value']
-        accounts_df = pd.read_csv(INPUT_DIR / 'accounts.csv', dtype={'balance': float, 'dividend_rate': float})
+        accounts_df = pd.read_csv(INPUT_DIR / 'accounts.csv', dtype={'balance': float, 'annual_tax_rate': float})
         income_df = pd.read_csv(INPUT_DIR / 'income_streams.csv', dtype={'annual_amount': float})
         ss_df = pd.read_csv(INPUT_DIR / 'social_security.csv', dtype={'fra_benefit': float})
         expenses_df = pd.read_csv(INPUT_DIR / 'annual_expenses.csv', dtype={'annual_amount': float})
+        # Use 'Taxable' as a synonym for 'Brokerage' for backward compatibility
+        accounts_df['account_type'] = accounts_df['account_type'].replace('Taxable', 'Brokerage')
         return config_df, accounts_df, income_df, ss_df, expenses_df
-    except FileNotFoundError as e:
-        print(f"FATAL ERROR: A required file was not found. Please ensure all 5 CSV files exist inside the '{INPUT_DIR}' subdirectory.")
-        print(f"File not found: {e.filename}"); sys.exit()
-    except (ValueError, KeyError) as e:
-        print(f"FATAL ERROR: A column might be missing or misnamed in your CSV files. Please check them. Error: {e}"); sys.exit()
+    except (FileNotFoundError, ValueError, KeyError) as e:
+        print(f"FATAL ERROR in loading data. Check your CSV files in '{INPUT_DIR}'. Ensure 'annual_tax_rate' column exists in accounts.csv. Error: {e}"); sys.exit()
 
 def calculate_ss_benefit(fra_benefit, fra_age, claim_age):
     if claim_age == fra_age: return fra_benefit
@@ -110,93 +109,35 @@ def withdraw_from_account(accounts_df, amount, acc_type):
     return withdrawal_amount
 
 def plot_financial_overview(df, scenario_name, output_dir):
-    fig, ax = plt.subplots(figsize=(12, 8))
-    ax.plot(df['Year'], df['Total Expenses'], label='Annual Expenses', color='red', marker='o', markersize=4)
-    ax.plot(df['Year'], df['Total Savings'], label='Total Savings', color='green', marker='o', markersize=4)
-    ax.set_title(f'Financial Overview: {scenario_name}', fontsize=16)
-    ax.set_xlabel('Year', fontsize=12)
-    ax.set_ylabel('Amount ($)', fontsize=12)
-    formatter = mticker.FuncFormatter(lambda x, p: f'${x:,.0f}')
-    ax.yaxis.set_major_formatter(formatter)
-    ax.legend(fontsize=12)
-    ax.grid(True, which='both', linestyle='--', linewidth=0.5)
-    plt.tight_layout()
-    safe_filename = "".join([c for c in scenario_name if c.isalpha() or c.isdigit() or c==' ']).rstrip()
-    plt.savefig(output_dir / f'{safe_filename}_overview.png')
-    plt.close(fig)
+    fig, ax = plt.subplots(figsize=(12, 8)); ax.plot(df['Year'], df['Total Expenses'], label='Annual Expenses', color='red', marker='o', markersize=4); ax.plot(df['Year'], df['Total Savings'], label='Total Savings', color='green', marker='o', markersize=4); ax.set_title(f'Financial Overview: {scenario_name}', fontsize=16); ax.set_xlabel('Year', fontsize=12); ax.set_ylabel('Amount ($)', fontsize=12); formatter = mticker.FuncFormatter(lambda x, p: f'${x:,.0f}'); ax.yaxis.set_major_formatter(formatter); ax.legend(fontsize=12); ax.grid(True, which='both', linestyle='--', linewidth=0.5); plt.tight_layout(); safe_filename = "".join([c for c in scenario_name if c.isalpha() or c.isdigit() or c==' ']).rstrip(); plt.savefig(output_dir / f'{safe_filename}_overview.png'); plt.close(fig)
 
 def plot_savings_breakdown(df, scenario_name, output_dir):
-    fig, ax = plt.subplots(figsize=(12, 8))
-    # CHANGE: Update labels to be more specific
-    labels = ['Cash', 'Taxable Accounts', 'Traditional', 'Roth']
-    colors = ['#c7c7c7', '#4c72b0', '#dd8452', '#55a868'] # Added grey for cash
-    
-    # >>>>> BUG FIX IS HERE <<<<<
-    # CHANGE: Use the new, more descriptive column names from the yearly report
-    ax.stackplot(df['Year'], df['Cash Balance'], df['Taxable Acct Balance'], df['Traditional Balance'], df['Roth Balance'], labels=labels, colors=colors)
+    fig, ax = plt.subplots(figsize=(12, 8)); labels = ['Cash', 'Brokerage', 'Traditional', 'Roth']; colors = ['#c7c7c7', '#4c72b0', '#dd8452', '#55a868']; ax.stackplot(df['Year'], df['Cash Balance'], df['Brokerage Balance'], df['Traditional Balance'], df['Roth Balance'], labels=labels, colors=colors); ax.set_title(f'Portfolio Composition: {scenario_name}', fontsize=16); ax.set_xlabel('Year', fontsize=12); ax.set_ylabel('Portfolio Value ($)', fontsize=12); formatter = mticker.FuncFormatter(lambda x, p: f'${x:,.0f}'); ax.yaxis.set_major_formatter(formatter); ax.legend(fontsize=12, loc='upper left'); ax.grid(True, which='both', linestyle='--', linewidth=0.5); plt.tight_layout(); safe_filename = "".join([c for c in scenario_name if c.isalpha() or c.isdigit() or c==' ']).rstrip(); plt.savefig(output_dir / f'{safe_filename}_composition.png'); plt.close(fig)
 
-    ax.set_title(f'Portfolio Composition: {scenario_name}', fontsize=16)
-    ax.set_xlabel('Year', fontsize=12)
-    ax.set_ylabel('Portfolio Value ($)', fontsize=12)
-    formatter = mticker.FuncFormatter(lambda x, p: f'${x:,.0f}')
-    ax.yaxis.set_major_formatter(formatter)
-    ax.legend(fontsize=12, loc='upper left')
-    ax.grid(True, which='both', linestyle='--', linewidth=0.5)
-    plt.tight_layout()
-    safe_filename = "".join([c for c in scenario_name if c.isalpha() or c.isdigit() or c==' ']).rstrip()
-    plt.savefig(output_dir / f'{safe_filename}_composition.png')
-    plt.close(fig)
-# --- Main Simulation Engine ---
-
-# --- Main Simulation Engine ---
-
-# --- Main Simulation Engine ---
-
-# --- Main Simulation Engine ---
-
-# --- Main Simulation Engine ---
-
-# --- Main Simulation Engine ---
-
-# --- Main Simulation Engine ---
-
-# --- Main Simulation Engine ---
+# --- Main Simulation Engine (Simplified Tax Model) ---
 
 def run_single_scenario(scenario_config):
     config_df, accounts_df, income_df, ss_df, expenses_df = load_data()
     if 'custom_inflation_rate' not in expenses_df.columns: expenses_df['custom_inflation_rate'] = pd.NA
     expenses_df['custom_inflation_rate'] = pd.to_numeric(expenses_df['custom_inflation_rate'], errors='coerce')
-
-    accounts_df = accounts_df.copy()
-    start_year = int(config_df['start_year'])
-    projection_years = int(config_df['projection_years'])
-    filing_status = config_df['federal_filing_status']
-    inf_general = float(scenario_config.get('inflation_rate_general', config_df['inflation_rate_general']))
-    inf_health = float(scenario_config.get('inflation_rate_healthcare', config_df['inflation_rate_healthcare']))
-    pensions = income_df.copy()
-    ss_data = ss_df.set_index('person_name').to_dict('index')
-    
-    person1_name = list(ss_data.keys())[0]
-    person2_name = list(ss_data.keys())[1]
-    person1_ss_age_key = f"{person1_name}_ss_age"
-    person2_ss_age_key = f"{person2_name}_ss_age"
+    accounts_df = accounts_df.copy(); start_year = int(config_df['start_year']); projection_years = int(config_df['projection_years']); filing_status = config_df['federal_filing_status']
+    inf_general = float(scenario_config.get('inflation_rate_general', config_df['inflation_rate_general'])); inf_health = float(scenario_config.get('inflation_rate_healthcare', config_df['inflation_rate_healthcare']))
+    pensions = income_df.copy(); ss_data = ss_df.set_index('person_name').to_dict('index')
+    person1_name = list(ss_data.keys())[0]; person2_name = list(ss_data.keys())[1]
+    person1_ss_age_key = f"{person1_name}_ss_age"; person2_ss_age_key = f"{person2_name}_ss_age"
     person1_ss_benefit = calculate_ss_benefit(ss_data[person1_name]['fra_benefit'], ss_data[person1_name]['fra_age'], scenario_config[person1_ss_age_key])
     person2_ss_benefit = calculate_ss_benefit(ss_data[person2_name]['fra_benefit'], ss_data[person2_name]['fra_age'], scenario_config[person2_ss_age_key])
-    
     total_taxes_paid = 0; total_irmaa_paid = 0; yearly_data_list = []
 
     for i in range(projection_years):
         current_year = start_year + i; current_age = 63 + i
-        
         inflated_brackets, inflated_deduction = get_inflated_tax_data(current_year, start_year, inf_general, filing_status)
         for idx, row in expenses_df.iterrows():
             if current_year > row['start_year']:
                 rate = row['custom_inflation_rate'] if pd.notna(row['custom_inflation_rate']) else (inf_health if row['inflation_category'] == 'Healthcare' else inf_general)
                 expenses_df.loc[idx, 'annual_amount'] *= (1 + rate)
-        
         if current_age > scenario_config[person1_ss_age_key]: person1_ss_benefit *= (1 + inf_general)
         if current_age > scenario_config[person2_ss_age_key]: person2_ss_benefit *= (1 + inf_general)
-        
         for idx, row in pensions.iterrows():
             if row['is_inflation_adjusted'] and current_year > row['start_year']: pensions.loc[idx, 'annual_amount'] *= (1 + inf_general)
         
@@ -208,21 +149,24 @@ def run_single_scenario(scenario_config):
                     irmaa_surcharge = (bracket['part_b_surcharge'] + bracket['part_d_surcharge']) * 2 * 12; break
         total_irmaa_paid += irmaa_surcharge
         
-        prior_trad_bal = accounts_df[accounts_df['account_type'] == 'Traditional']['balance'].sum()
-        
-        taxable_accounts_df = accounts_df[accounts_df['account_type'].isin(['Taxable', 'Cash'])].copy()
-        taxable_investment_income = (taxable_accounts_df['balance'] * taxable_accounts_df['dividend_rate']).sum()
+        start_of_year_balances = accounts_df.copy()
+        prior_trad_bal = start_of_year_balances[start_of_year_balances['account_type'] == 'Traditional']['balance'].sum()
         
         accounts_df['balance'] *= (1 + accounts_df['annual_growth_rate'])
-
+        
+        tax_on_growth = 0
+        for index, row in start_of_year_balances.iterrows():
+            if row['account_type'] in ['Brokerage', 'Cash']:
+                growth = accounts_df.loc[index, 'balance'] - row['balance']
+                tax_on_growth += growth * row['annual_tax_rate']
+        
         pension_income = pensions[(pensions['start_year'] <= current_year) & (pensions['end_year'] >= current_year)]['annual_amount'].sum()
-        person1_ss_payment_this_year = person1_ss_benefit if current_age >= scenario_config[person1_ss_age_key] else 0
-        person2_ss_payment_this_year = person2_ss_benefit if current_age >= scenario_config[person2_ss_age_key] else 0
-        ss_income = person1_ss_payment_this_year + person2_ss_payment_this_year
+        person1_ss_payment = person1_ss_benefit if current_age >= scenario_config[person1_ss_age_key] else 0
+        person2_ss_payment = person2_ss_benefit if current_age >= scenario_config[person2_ss_age_key] else 0
+        ss_income = person1_ss_payment + person2_ss_payment
 
         roth_conversion_amount = 0
-        preliminary_taxable_income = taxable_investment_income + pension_income
-        
+        preliminary_taxable_income = pension_income
         if current_year <= scenario_config.get('roth_end_year', 0):
             if scenario_config.get('roth_strategy') == 'fixed_amount':
                 roth_conversion_amount = scenario_config.get('roth_amount', 0)
@@ -230,40 +174,41 @@ def run_single_scenario(scenario_config):
                 rate = scenario_config.get('roth_target_bracket_rate', 0)
                 if rate in inflated_brackets:
                     target_top = inflated_brackets[rate][1]
-                    taxable_income_before_conversion = preliminary_taxable_income - inflated_deduction
-                    roth_conversion_amount = max(0, target_top - taxable_income_before_conversion)
-
+                    roth_conversion_amount = max(0, target_top - (preliminary_taxable_income - inflated_deduction))
         roth_conversion_amount = max(0, min(roth_conversion_amount, prior_trad_bal))
-
-        if roth_conversion_amount > 0:
-            withdraw_from_account(accounts_df, roth_conversion_amount, 'Traditional')
-            accounts_df.loc[accounts_df['account_type'] == 'Roth', 'balance'] += roth_conversion_amount
-            
+        
         rmd_amount = 0
         if current_age >= 75: rmd_amount = prior_trad_bal / IRS_UNIFORM_LIFETIME_TABLE.get(current_age, 8.9)
         
         year_expenses = expenses_df[(expenses_df['start_year'] <= current_year) & (expenses_df['end_year'] >= current_year)]['annual_amount'].sum()
-        year_expenses += irmaa_surcharge; cash_needed_for_spending = max(0, year_expenses - (pension_income + ss_income))
+        year_expenses += irmaa_surcharge
+        cash_needed_for_spending = max(0, year_expenses - (pension_income + ss_income))
+
+        traditional_withdrawal = 0
+        if cash_needed_for_spending > 0:
+             non_retirement_cash = accounts_df.loc[accounts_df['account_type'].isin(['Cash', 'Brokerage']), 'balance'].sum()
+             traditional_withdrawal = max(0, cash_needed_for_spending - non_retirement_cash)
+        traditional_withdrawal = max(rmd_amount, traditional_withdrawal)
         
-        traditional_withdrawal = max(rmd_amount, cash_needed_for_spending)
-        
-        AGI_Proxy = taxable_investment_income + pension_income + roth_conversion_amount + traditional_withdrawal
+        AGI_Proxy = pension_income + roth_conversion_amount + traditional_withdrawal
         MAGI = AGI_Proxy + ss_income
         
-        if MAGI > inflated_brackets.get(0.22, (float('inf'),))[0]: 
-            final_taxable_income = AGI_Proxy + (ss_income * 0.85)
-        elif MAGI > inflated_brackets.get(0.12, (float('inf'),))[0]: 
-            final_taxable_income = AGI_Proxy + (ss_income * 0.50)
-        else: 
-            final_taxable_income = AGI_Proxy
+        if MAGI > inflated_brackets.get(0.22, (float('inf'),))[0]: final_taxable_income = AGI_Proxy + (ss_income * 0.85)
+        elif MAGI > inflated_brackets.get(0.12, (float('inf'),))[0]: final_taxable_income = AGI_Proxy + (ss_income * 0.50)
+        else: final_taxable_income = AGI_Proxy
+            
+        tax_from_ordinary_income = calculate_federal_tax(final_taxable_income, filing_status, inflated_brackets, inflated_deduction)
         
-        # >>>>> BUG FIX IS HERE <<<<<
-        federal_tax = calculate_federal_tax(final_taxable_income, filing_status, inflated_brackets, inflated_deduction)
+        federal_tax = tax_from_ordinary_income + tax_on_growth
         total_taxes_paid += federal_tax
         
         cash_needed_from_portfolio = cash_needed_for_spending + federal_tax
+        if roth_conversion_amount > 0:
+            withdraw_from_account(accounts_df, roth_conversion_amount, 'Traditional')
+            accounts_df.loc[accounts_df['account_type'] == 'Roth', 'balance'] += roth_conversion_amount
+            
         withdrawn_so_far = 0
-        withdrawal_hierarchy = ['Cash', 'Taxable', 'Traditional', 'Roth']
+        withdrawal_hierarchy = ['Cash', 'Brokerage', 'Traditional', 'Roth']
         for acc_type in withdrawal_hierarchy:
             needed = cash_needed_from_portfolio - withdrawn_so_far
             if needed <= 0: break
@@ -271,85 +216,59 @@ def run_single_scenario(scenario_config):
             withdrawn_so_far += withdrawn
         
         current_year_data = {
-            'Year': current_year,
-            f'{person1_name} (age)': current_age,
-            f'{person2_name} (age)': current_age,
-            'AGI_Proxy': AGI_Proxy,
-            'MAGI': MAGI,
-            'Pension Income': pension_income,
-            'Total SS': ss_income,
-            f'{person1_name} SS': person1_ss_payment_this_year,
-            f'{person2_name} SS': person2_ss_payment_this_year,
-            'Total Expenses': year_expenses,
-            'Taxable Investment Income': taxable_investment_income,
-            'Roth Conversion': roth_conversion_amount,
-            'RMD': rmd_amount,
-            'Federal Taxes': federal_tax,
-            'IRMAA': irmaa_surcharge,
-            'Total Savings': accounts_df['balance'].sum(),
-            'Cash Balance': accounts_df[accounts_df['account_type'] == 'Cash']['balance'].sum(),
-            'Taxable Acct Balance': accounts_df[accounts_df['account_type'] == 'Taxable']['balance'].sum(),
+            'Year': current_year, f'{person1_name} (age)': current_age, f'{person2_name} (age)': current_age,
+            'AGI_Proxy': AGI_Proxy, 'MAGI': MAGI, 'Pension Income': pension_income, 'Total SS': ss_income,
+            f'{person1_name} SS': person1_ss_payment, f'{person2_name} SS': person2_ss_payment,
+            'Total Expenses': year_expenses, 'Tax on Growth': tax_on_growth, 'Roth Conversion': roth_conversion_amount,
+            'RMD': rmd_amount, 'Federal Taxes': federal_tax, 'IRMAA': irmaa_surcharge,
+            'Total Savings': accounts_df['balance'].sum(), 'Cash Balance': accounts_df[accounts_df['account_type'] == 'Cash']['balance'].sum(),
+            'Brokerage Balance': accounts_df[accounts_df['account_type'] == 'Brokerage']['balance'].sum(),
             'Traditional Balance': accounts_df[accounts_df['account_type'] == 'Traditional']['balance'].sum(),
             'Roth Balance': accounts_df[accounts_df['account_type'] == 'Roth']['balance'].sum()
         }
-        
         for _, row in expenses_df.iterrows():
             if row['start_year'] <= current_year <= row['end_year']: current_year_data[row['expense_name']] = row['annual_amount']
             else: current_year_data[row['expense_name']] = 0
-        
         for key, value in current_year_data.items():
-            if isinstance(value, (int, float)) and key != 'Year':
-                current_year_data[key] = round(value)
-
+            if isinstance(value, (int, float)) and key != 'Year': current_year_data[key] = round(value)
         yearly_data_list.append(current_year_data)
         
         if withdrawn_so_far < cash_needed_from_portfolio - 1:
             summary = {'Scenario Name': scenario_config['name'], 'Total Lifetime Taxes': total_taxes_paid, 'Total IRMAA Paid': total_irmaa_paid, 'Final Portfolio Value': 0, 'Age Portfolio Depleted': current_age}
-            details_df = pd.DataFrame(yearly_data_list)
-            return summary, details_df
+            details_df = pd.DataFrame(yearly_data_list); return summary, details_df
             
     summary = {'Scenario Name': scenario_config['name'], 'Total Lifetime Taxes': total_taxes_paid, 'Total IRMAA Paid': total_irmaa_paid, 'Final Portfolio Value': accounts_df['balance'].sum(), 'Age Portfolio Depleted': 'N/A'}
-    details_df = pd.DataFrame(yearly_data_list)
-    return summary, details_df
+    details_df = pd.DataFrame(yearly_data_list); return summary, details_df
 
 # --- Main Program Execution ---
 if __name__ == "__main__":
-    print("Running final simulation (v9) with plotting...")
-    
-    # --- Clear out old reports and create directories ---
-    if REPORTS_DIR.exists():
-        for item in REPORTS_DIR.iterdir():
-            if item.is_dir():
-                shutil.rmtree(item)
-            else:
-                item.unlink()
-    REPORTS_DIR.mkdir(exist_ok=True)
-    PLOT_DIR.mkdir(exist_ok=True)
-    YEARLY_DIR.mkdir(exist_ok=True)
+    print("Running final simulation (Simplified Tax Model)...")
+    if REPORTS_DIR.exists(): shutil.rmtree(REPORTS_DIR)
+    REPORTS_DIR.mkdir(exist_ok=True); PLOT_DIR.mkdir(exist_ok=True); YEARLY_DIR.mkdir(exist_ok=True)
     
     all_summary_results = []
     
     for scenario in SCENARIOS_TO_RUN:
         print(f"  - Simulating: {scenario['name']}")
-        
         summary_result, details_df = run_single_scenario(scenario.copy())
         all_summary_results.append(summary_result)
         
-        details_df.to_csv(YEARLY_DIR / f"{scenario['name']}_yearly.csv", index=False)
-
+        safe_name = "".join([c for c in scenario['name'] if c.isalpha() or c.isdigit() or c==' ']).rstrip()
+        details_df.to_csv(YEARLY_DIR / f"{safe_name}_yearly.csv", index=False)
+        
         print(f"    - Generating plots for {scenario['name']}")
         plot_financial_overview(details_df, scenario['name'], PLOT_DIR)
         plot_savings_breakdown(details_df, scenario['name'], PLOT_DIR)
-
+        
     summary_df = pd.DataFrame(all_summary_results)
     summary_df['Total Lifetime Taxes'] = summary_df['Total Lifetime Taxes'].round().map('${:,.0f}'.format)
     summary_df['Total IRMAA Paid'] = summary_df['Total IRMAA Paid'].round().map('${:,.0f}'.format)
     summary_df['Final Portfolio Value'] = summary_df['Final Portfolio Value'].round().map('${:,.0f}'.format)
     
-    print("\n--- FINAL SCENARIO COMPARISON REPORT (v9) ---")
+    print("\n--- FINAL SCENARIO COMPARISON REPORT ---")
     print(summary_df.to_string(index=False))
     
-    output_filename = REPORTS_DIR / 'summary_report_final_v9.csv'
+    output_filename = REPORTS_DIR / 'summary_report_final.csv'
     summary_df.to_csv(output_filename, index=False)
     print(f"\nSummary report saved to {output_filename}")
-    print(f"All plots saved in the '{PLOT_DIR}' directory.")
+    print(f"All plots and yearly details saved in the '{REPORTS_DIR}' directory.")

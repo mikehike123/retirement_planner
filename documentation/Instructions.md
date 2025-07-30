@@ -1,4 +1,50 @@
-# Retirement Portfolio & Tax Simulator: Documentation (v12)
+That is an absolutely essential and responsible final addition. Acknowledging a model's assumptions and simplifications is just as important as documenting its features. It ensures that the results are always interpreted with the proper context.
+
+This is the perfect "capstone" to our documentation. Here is the new section.
+
+---
+
+### **New Section for the Documentation**
+
+This section should be added between **Part 3: The Simulation Engine** and **Part 4: Understanding the Output**.
+
+### **Part 3.5: Important Assumptions & Simplifications**
+
+This simulator is a powerful strategic tool, but it is not a perfect representation of the entire U.S. tax code. To keep the model manageable and focused, several important simplifications have been made. It is critical to understand these assumptions when interpreting the results.
+
+#### **1. Federal Tax Calculation (The Biggest Simplification)**
+*   **The Simplification:** The model calculates a `Tax on Growth` for your `Brokerage` and `Cash` accounts using your estimated `annual_tax_rate`. It then calculates taxes on all other income (Pensions, RMDs, taxable Social Security, etc.) using the standard ordinary income tax brackets. It does not have a separate, parallel tax system for long-term capital gains and qualified dividends.
+*   **The Impact:** This approach is **intentionally conservative**. It will likely **overestimate the taxes** you pay in a given year compared to reality, where qualified dividends and long-term capital gains from your brokerage account would be taxed at lower rates.
+*   **Why It's Acceptable:** Because this conservative tax treatment is applied consistently across all scenarios, the *comparison* between them remains valid and meaningful. If the model shows a plan is successful under these higher tax assumptions, it will be even more successful in the real world.
+
+#### **2. State and Local Taxes**
+*   **The Simplification:** The model **does not calculate state or local income taxes**. The `state` parameter in `config.csv` is a placeholder for future development.
+*   **The Impact:** The `Total Lifetime Taxes` reported is for **federal taxes only**. Your actual lifetime tax burden will be higher, especially if you live in a high-income-tax state.
+*   **How to Mitigate:** You can approximate state taxes by adding a new line item to your `annual_expenses.csv` file called "State Taxes" with your best estimate of the annual cost.
+
+#### **3. Withdrawal of Principal vs. Gains**
+*   **The Simplification:** In the simplified "Tax on Growth" model, we assume all growth is taxed annually based on your `annual_tax_rate`. The subsequent withdrawal of principal from `Cash` and `Brokerage` accounts is then treated as a non-taxable event.
+*   **The Impact:** This is an abstraction of reality. In the real world, you are taxed only on the *profit portion* of any shares you sell (the capital gain). Our model's approach effectively "pre-pays" the tax on the growth each year instead of at the moment of sale. This simplifies the model by eliminating the need to track cost basis for every investment.
+
+#### **4. Social Security Taxability Thresholds**
+*   **The Simplification:** The model uses the lower boundaries of the inflation-adjusted 12% and 22% tax brackets as proxies for the official Social Security taxability thresholds ($32,000 and $44,000 for MFJ, before inflation).
+*   **The Impact:** This is a very close and reasonable approximation. Since the official thresholds are also indexed to inflation, using the tax brackets as a stand-in ensures that the trigger points for Social Security taxation rise realistically over time.
+
+#### **5. Single Age Assumption**
+*   **The Simplification:** The model assumes both partners are the same age for the purpose of the main simulation loop (`current_age = 63 + i`).
+*   **The Impact:** This has a negligible effect on the overall financial outcome. RMDs are based on individual ages, but our model simplifies this to a single age for the lookup. The most important age-related calculations (Social Security claiming and Medicare start) are handled correctly based on the specific ages you define in the scenarios.
+
+Understanding these assumptions is key to using this tool wisely. It is a strategic compass to point you in the right direction, not a GPS to give you a precise dollar amount.
+
+---
+
+### **The Final, Complete Document**
+
+Here is the entire documentation from start to finish with this crucial new section included. This is the definitive user guide for our project.
+
+***
+
+# Retirement Portfolio & Tax Simulator: Documentation (Final Version)
 
 ## Introduction
 
@@ -36,7 +82,7 @@ retirement_project/
 ├── reports/                <-- The program will save its output files here.
 │   ├── plots/
 │   └── yearly/
-├── retirement_model_v12.py <-- The main program script.
+├── retirement_model_final.py <-- The main program script.
 └── .gitignore              <-- The file that protects your private data on GitHub.
 ```
 
@@ -47,8 +93,7 @@ The program runs in a self-contained Anaconda environment and requires the `pand
 2.  **Create the environment** by running this command:
     ```bash
     conda create --name retirement_planner python=3.11 pandas matplotlib
-    ```
-3.  When prompted, type `y` and press Enter.
+    ```3.  When prompted, type `y` and press Enter.
 
 ### 1.3 Running the Program
 To run a simulation, follow these steps:
@@ -64,7 +109,7 @@ To run a simulation, follow these steps:
     ```
 4.  **Run the script:**
     ```bash
-    python retirement_model_v12.py
+    python retirement_model_final.py
     ```
 
 The program will print its progress and save all reports and plots to the appropriate subdirectories inside the `reports/` folder.
@@ -72,8 +117,6 @@ The program will print its progress and save all reports and plots to the approp
 ---
 
 ## Part 2: The User Guide - Your Input Files
-
-(This section is unchanged as the input file structure is stable.)
 
 The engine is powered by five CSV files located in the `input_files/` directory. The accuracy of the simulation depends entirely on the quality of this data.
 
@@ -95,10 +138,10 @@ Lists all your financial accounts.
 | Column | Description |
 | :--- | :--- |
 | `account_name` | A unique name for each account. |
-| `account_type` | Critical for tax logic. Must be one of: **`Taxable`**, **`Traditional`**, **`Roth`**, or **`Cash`**. |
+| `account_type` | Critical for tax logic. Must be one of: **`Brokerage`**, **`Traditional`**, **`Roth`**, or **`Cash`**. (`Taxable` is also accepted as a synonym for `Brokerage`). |
 | `balance` | The starting balance of the account. |
 | `annual_growth_rate`| The estimated **TOTAL** annual return for the account. |
-| `dividend_rate` | The portion of the return that is a taxable distribution (dividends/interest). For `Traditional` and `Roth`, this must be `0`. For `Cash`, this must equal `annual_growth_rate`. |
+| `annual_tax_rate` | The "fudged" annual tax rate on the *growth* of `Brokerage` and `Cash` accounts. For `Traditional` and `Roth`, this must be `0`. |
 
 ### 2.3 `income_streams.csv`
 For external, non-Social Security income.
@@ -136,9 +179,35 @@ Lists all your planned expenses.
 
 ## Part 3: The Simulation Engine - Calculations & Data
 
-(This section is unchanged as the core logic is stable.)
+The program simulates your financial life year by year, modeling key financial events such as Social Security benefits, RMDs, Medicare IRMAA surcharges, taxes on investment growth, federal income tax, and inflation.
 
-The program simulates your financial life year by year, modeling key financial events such as Social Security benefits, RMDs, Medicare IRMAA surcharges, tax drag from investments, federal income tax, and inflation.
+---
+
+## Part 3.5: Important Assumptions & Simplifications
+
+This simulator is a powerful strategic tool, but it is not a perfect representation of the entire U.S. tax code. To keep the model manageable and focused, several important simplifications have been made. It is critical to understand these assumptions when interpreting the results.
+
+#### **1. Federal Tax Calculation (The Biggest Simplification)**
+*   **The Simplification:** The model calculates a `Tax on Growth` for your `Brokerage` and `Cash` accounts using your estimated `annual_tax_rate`. It then calculates taxes on all other income (Pensions, RMDs, taxable Social Security, etc.) using the standard ordinary income tax brackets. It does not have a separate, parallel tax system for long-term capital gains and qualified dividends.
+*   **The Impact:** This approach is **intentionally conservative**. It will likely **overestimate the taxes** you pay in a given year compared to reality, where qualified dividends and long-term capital gains from your brokerage account would be taxed at lower rates.
+*   **Why It's Acceptable:** Because this conservative tax treatment is applied consistently across all scenarios, the *comparison* between them remains valid and meaningful. If the model shows a plan is successful under these higher tax assumptions, it will be even more successful in the real world.
+
+#### **2. State and Local Taxes**
+*   **The Simplification:** The model **does not calculate state or local income taxes**. The `state` parameter in `config.csv` is a placeholder for future development.
+*   **The Impact:** The `Total Lifetime Taxes` reported is for **federal taxes only**. Your actual lifetime tax burden will be higher, especially if you live in a high-income-tax state.
+*   **How to Mitigate:** You can approximate state taxes by adding a new line item to your `annual_expenses.csv` file called "State Taxes" with your best estimate of the annual cost.
+
+#### **3. Withdrawal of Principal vs. Gains**
+*   **The Simplification:** In the simplified "Tax on Growth" model, we assume all growth is taxed annually based on your `annual_tax_rate`. The subsequent withdrawal of principal from `Cash` and `Brokerage` accounts is then treated as a non-taxable event.
+*   **The Impact:** This is an abstraction of reality. In the real world, you are taxed only on the *profit portion* of any shares you sell (the capital gain). Our model's approach effectively "pre-pays" the tax on the growth each year instead of at the moment of sale. This simplifies the model by eliminating the need to track cost basis for every investment.
+
+#### **4. Social Security Taxability Thresholds**
+*   **The Simplification:** The model uses the lower boundaries of the inflation-adjusted 12% and 22% tax brackets as proxies for the official Social Security taxability thresholds ($32,000 and $44,000 for MFJ, before inflation).
+*   **The Impact:** This is a very close and reasonable approximation. Since the official thresholds are also indexed to inflation, using the tax brackets as a stand-in ensures that the trigger points for Social Security taxation rise realistically over time.
+
+#### **5. Single Age Assumption**
+*   **The Simplification:** The model assumes both partners are the same age for the purpose of the main simulation loop (`current_age = 63 + i`).
+*   **The Impact:** This has a negligible effect on the overall financial outcome. RMDs are based on individual ages, but our model simplifies this to a single age for the lookup. The most important age-related calculations (Social Security claiming and Medicare start) are handled correctly based on the specific ages you define in the scenarios.
 
 ---
 
@@ -146,7 +215,7 @@ The program simulates your financial life year by year, modeling key financial e
 
 The program generates three types of output for each scenario, all saved in the `reports/` directory.
 
-### 4.1 The Summary Report (`summary_report_final_v12.csv`)
+### 4.1 The Summary Report (`summary_report_final.csv`)
 This is your high-level dashboard for comparing strategies.
 
 | Column | How to Interpret It |
@@ -166,8 +235,8 @@ Saved in the `reports/plots/` subdirectory, these images provide an intuitive st
     *   **Interpretation:** Ideally, you want to see the green line staying comfortably above the red line and, preferably, continuing to grow. If the lines converge or cross, it signals a point of financial stress in that scenario.
 
 *   **Portfolio Composition Plot (`_composition.png`):** This stacked area chart gives you a powerful visual breakdown of your savings.
-    *   **The Colors:** Each colored area represents a different account type (Cash, Taxable, Traditional, Roth).
-    *   **Interpretation:** You can visually track the "withdrawal waterfall" as the model spends down your accounts in the correct order (Cash first, then Taxable, etc.). In Roth conversion scenarios, you can see the orange "Traditional" area shrink while the green "Roth" area grows, providing a clear visual of the conversion strategy in action.
+    *   **The Colors:** Each colored area represents a different account type (Cash, Brokerage, Traditional, Roth).
+    *   **Interpretation:** You can visually track the "withdrawal waterfall" as the model spends down your accounts in the correct order (Cash first, then Brokerage, etc.). In Roth conversion scenarios, you can see the orange "Traditional" area shrink while the green "Roth" area grows, providing a clear visual of the conversion strategy in action.
 
 ### 4.3 The Detailed Yearly Reports (`_yearly.csv`)
 Saved in the `reports/yearly/` subdirectory, these detailed spreadsheets are your primary tool for debugging and deep analysis. They show the "workings" of the simulation for every single year.
@@ -175,24 +244,22 @@ Saved in the `reports/yearly/` subdirectory, these detailed spreadsheets are you
 | Column | Description & Calculation |
 | :--- | :--- |
 | `Year`, `[Name] (age)` | The current year and your age in that year. |
-| **`AGI_Proxy`** | **Calculated.** Our model's proxy for Adjusted Gross Income. This is the critical number used to determine if your Social Security is taxable. <br> *Calculation:* `Taxable Investment Income + Pension Income + Roth Conversion + Traditional Withdrawal` |
+| **`AGI_Proxy`** | **Calculated.** Our model's proxy for Adjusted Gross Income. This is the critical number used to determine if your Social Security is taxable. <br> *Calculation:* `Pension Income + Roth Conversion + Traditional Withdrawal` |
 | **`MAGI`** | **Calculated.** Our model's Modified Adjusted Gross Income, used to calculate IRMAA surcharges. <br> *Calculation:* `AGI_Proxy + Total SS` |
 | `Pension Income` | The inflated value of any pension for that year. |
 | `Total SS`, `[Name] SS` | The inflated Social Security benefits paid out in that year, based on your claiming age. |
 | `Total Expenses` | **Calculated.** The total spending for the year. <br> *Calculation:* `Sum of all active, inflated expenses + IRMAA surcharge` |
-| `Taxable Investment Income`| **Calculated.** The "tax drag" from your non-retirement accounts. <br> *Calculation:* `Sum of (start-of-year balance * dividend_rate)` for all `Taxable` and `Cash` accounts. |
+| `Tax on Growth` | **Calculated.** The tax paid on the growth of your non-retirement accounts. <br> *Calculation:* `Sum of (growth this year * annual_tax_rate)` for all `Brokerage` and `Cash` accounts. |
 | `Roth Conversion` | The amount converted from a Traditional to a Roth account in that year. |
 | `RMD` | **Calculated.** Your Required Minimum Distribution. It appears only at age 75+. <br> *Calculation:* `Prior year-end Traditional balance / IRS factor for current age` |
-| `Federal Taxes` | **Calculated.** Your final tax bill for the year. <br> *Calculation:* Based on your `final_taxable_income` (`AGI_Proxy` + taxable portion of SS) run through the inflated tax brackets after the inflated standard deduction. |
+| `Federal Taxes` | **Calculated.** Your final federal income tax bill for the year. <br> **Calculation:** This is the final step in the tax waterfall. It is calculated by taking your `final_taxable_income` and applying the progressive tax brackets for the year after subtracting the standard deduction. The code equivalent is: <br> `calculate_federal_tax(final_taxable_income, filing_status, inflated_brackets, inflated_deduction)` |
 | `IRMAA` | **Calculated.** Your annual Medicare premium surcharge. <br> *Calculation:* Based on your `MAGI` from two years prior. |
 | `Total Savings` | **Calculated.** The sum of all account balances at the end of the year. |
-| `Cash Balance`, `Taxable Acct Balance`, `Traditional Balance`, `Roth Balance`| **Calculated.** The year-end balance for each specific account type. |
+| `Cash Balance`, `Brokerage Balance`, `Traditional Balance`, `Roth Balance`| **Calculated.** The year-end balance for each specific account type. |
 
 ---
 
 ## Part 5: Advanced Usage & Maintenance
-
-(This section is unchanged.)
 
 ### 5.1 Running New Scenarios
 Edit the `SCENARIOS_TO_RUN` list in the `.py` script to test new strategies.
