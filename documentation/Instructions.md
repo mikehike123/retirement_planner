@@ -1,0 +1,225 @@
+# Retirement Portfolio & Tax Simulator: Documentation (v8)
+
+## Introduction
+
+This document provides a complete guide to the Python-based retirement simulator we have built. The program is designed as a powerful, personal modeling tool to help retirees make strategic financial decisions by comparing the long-term outcomes of different scenarios.
+
+The primary purpose of this tool is to provide data-driven answers to critical retirement questions, such as:
+*   When is the optimal time to claim Social Security?
+*   What is the long-term impact of performing Roth conversions?
+*   How does my plan hold up under different inflation scenarios?
+*   What is the lifetime cost of taxes and Medicare surcharges in different strategies?
+
+This document will guide you through the setup, usage, maintenance, and interpretation of the simulator.
+
+---
+
+## **IMPORTANT: Disclaimer**
+
+This program is a **modeling and educational tool ONLY**. It is not a substitute for professional financial, tax, or legal advice. The results and scenarios generated are based on the data you provide and the simplified financial models built into the code. All financial decisions have real-world consequences, and you should consult with a qualified professional before taking any action based on the output of this program.
+
+---
+
+## Part 1: Getting Started
+
+### 1.1 Folder Structure
+The program is designed to use a clean and organized folder structure. Your main project directory should be set up as follows:
+
+```
+retirement_project/
+├── input_files/            <-- Your 5 personal data files go here.
+│   ├── accounts.csv
+│   ├── annual_expenses.csv
+│   ├── config.csv
+│   ├── income_streams.csv
+│   └── social_security.csv
+├── reports/                <-- The program will save its output files here.
+├── retirement_model_v8.py  <-- The main program script.
+└── .gitignore              <-- The file that protects your private data on GitHub.
+```
+
+### 1.2 Installation (One-Time Setup)
+The program runs in a self-contained Anaconda environment to ensure it always works correctly.
+
+1.  **Open the Anaconda Prompt** from your Windows Start Menu.
+2.  **Create the environment** by running this command:
+    ```bash
+    conda create --name retirement_planner python=3.11 pandas
+    ```
+3.  When prompted, type `y` and press Enter.
+
+### 1.3 Running the Program
+To run a simulation, follow these steps:
+
+1.  **Open the Anaconda Prompt** (or a VSCode terminal configured for Anaconda).
+2.  **Activate the environment:**
+    ```bash
+    conda activate retirement_planner
+    ```
+3.  **Navigate to your project folder:**
+    ```bash
+    cd C:\path\to\your\retirement_project
+    ```
+4.  **Run the script:**
+    ```bash
+    python retirement_model_v8.py
+    ```
+
+The program will print its progress and save the final report to the `reports/` directory.
+
+---
+
+## Part 2: The User Guide - Your Input Files
+
+The engine is powered by five CSV files located in the `input_files/` directory. The accuracy of the simulation depends entirely on the quality of this data.
+
+### 2.1 `config.csv`
+This file holds the global settings for the simulation.
+
+| parameter | value | Description |
+| :--- | :--- | :--- |
+| `start_year` | 2025 | The first year of the simulation. |
+| `projection_years`| 35 | The number of years the simulation will run. |
+| `federal_filing_status` | Married Filing Jointly | Your tax filing status. Currently, only `Married Filing Jointly` is fully supported. |
+| `state` | California | Your state of residence. (Note: State tax logic is not currently implemented). |
+| `inflation_rate_general`| 0.03 | The default annual inflation rate for most expenses. Use decimal format (e.g., 3% = 0.03). |
+| `inflation_rate_healthcare`| 0.05 | The default annual inflation rate for healthcare, which typically outpaces general inflation. |
+
+### 2.2 `accounts.csv`
+This is the heart of your financial picture, listing all your accounts.
+
+| Column | Description |
+| :--- | :--- |
+| `account_name` | A unique name for each account (e.g., "Fidelity Brokerage"). |
+| `account_type` | Critical for tax logic. Must be one of: **`Taxable`**, **`Traditional`**, **`Roth`**, or **`Cash`**. |
+| `balance` | The starting balance of the account. |
+| `annual_growth_rate`| The estimated **TOTAL** annual return for the account, including dividends and appreciation. (e.g., 7% = 0.07). |
+| `dividend_rate` | The portion of the `annual_growth_rate` that comes from taxable dividends or interest. For `Traditional` and `Roth` accounts, this must be `0`. For a savings account, it would be the same as the `annual_growth_rate`. |
+
+### 2.3 `income_streams.csv`
+This file is for **external, non-Social Security income**, like pensions or annuities.
+
+| Column | Description |
+| :--- | :--- |
+| `stream_name` | The name of the income source (e.g., "Jane's Company Pension"). |
+| `annual_amount` | The gross annual amount received. |
+| `start_year` | The year the income begins. |
+| `end_year` | The year the income ends. |
+| `is_inflation_adjusted` | `TRUE` if the income receives a Cost-of-Living Adjustment (COLA), otherwise `FALSE`. |
+
+### 2.4 `social_security.csv`
+This holds your base Social Security benefit data.
+
+| Column | Description |
+| :--- | :--- |
+| `person_name` | Your names (e.g., "John", "Jane"). Must match the names in `SCENARIOS_TO_RUN`. |
+| `fra_benefit` | The estimated **annual** benefit you would receive at your Full Retirement Age (FRA). |
+| `fra_age` | Your Full Retirement Age (e.g., 67). |
+
+### 2.5 `annual_expenses.csv`
+This file lists all your planned expenses, both recurring and one-time. It offers a powerful and flexible way to model inflation.
+
+| Column | Description |
+| :--- | :--- |
+| `expense_name` | The name of the expense (e.g., "Base Living Expenses"). |
+| `annual_amount` | The starting annual cost of the expense. |
+| `start_year` | The first year the expense occurs. For a one-time expense, this is the same as the `end_year`. |
+| `end_year` | The last year the expense occurs. |
+| `inflation_category` | The **default** inflation category. This is used when a custom rate is not provided. <br> - Use **`Healthcare`** for medical costs to apply the `inflation_rate_healthcare`. <br> - Use **`General`** for most other standard costs. <br> - Use **`Custom`** as a self-documenting label when you are providing a specific rate. |
+| `custom_inflation_rate` | **Optional.** This is the most powerful feature in this file. If you enter a rate here (e.g., `0.06` for 6%), it will **override** the category-based inflation and apply this specific rate to this one expense only. Leave this column blank for all expenses you want to inflate using the `General` or `Healthcare` rates. |
+
+**Example of the Override System in Action:**
+
+Consider this setup in your CSV:
+
+`Property Tax,9000,2025,2060,Custom,0.06`
+`Base Living Expenses,70000,2025,2060,General,`
+
+*   For **Property Tax**, the program sees the `0.06` in the custom column and will use a 6% inflation rate every year. It ignores the word "Custom".
+*   For **Base Living Expenses**, the program sees the custom column is blank. It then falls back to the `inflation_category` column, sees the word "General", and applies the global `inflation_rate_general` from your `config.csv` file.
+
+This system gives you precise control over expenses you know behave differently, like property taxes or travel budgets, while keeping the setup simple for everything else.
+
+---
+
+## Part 3: The Simulation Engine - Calculations & Data
+
+The program simulates your financial life year by year. Here are the key calculations it performs.
+
+### 3.1 Social Security Benefit
+*   **Purpose:** To calculate your actual benefit based on your chosen claiming age in a scenario.
+*   **Logic:** It applies the standard SSA rules, increasing your `fra_benefit` by 8% for each year you delay claiming after your FRA (up to age 70) and reducing it for claiming early.
+
+### 3.2 Required Minimum Distributions (RMDs)
+*   **Purpose:** To simulate the legally required withdrawals from Traditional retirement accounts.
+*   **Data Source:** `IRS_UNIFORM_LIFETIME_TABLE` dictionary in the code.
+*   **Logic:** Starting at age 75, the model calculates the RMD by taking the previous year-end balance of all Traditional accounts and dividing it by the "distribution period" factor from the IRS table for your current age. This RMD amount becomes a minimum withdrawal for the year and is fully taxable.
+
+### 3.3 Medicare IRMAA Surcharges
+*   **Purpose:** To model the "hidden tax" of higher Medicare premiums due to high income.
+*   **Data Source:** `MEDICARE_IRMAA_BRACKETS` list in the code, based on the official 2025 brackets.
+*   **Logic:** The model performs a **2-year lookback**. For the current simulation year, it retrieves your Modified Adjusted Gross Income (MAGI) from two years prior. It compares this MAGI to the IRMAA thresholds and, if a threshold is crossed, adds the corresponding annual surcharge for both Part B and Part D (multiplied by two for a couple) to the current year's expenses.
+
+### 3.4 Tax Drag (Dividends)
+*   **Purpose:** To capture the annual tax liability generated by taxable investment accounts, even if nothing is sold.
+*   **Logic:** For each account marked `Taxable` or `Cash`, the model multiplies its starting balance by its `dividend_rate`. This amount is immediately added to the `taxable_income` for the year.
+
+### 3.5 Federal Income Tax
+*   **Purpose:** To calculate your annual federal income tax bill.
+*   **Data Source:** `BASE_FEDERAL_TAX_BRACKETS` and `BASE_FEDERAL_STANDARD_DEDUCTION` dictionaries.
+*   **Logic:** The model first calculates your total taxable income for the year (pensions, dividends, all Traditional withdrawals). It then calculates the taxable portion of your Social Security benefits based on your provisional income. After subtracting the standard deduction, it applies the progressive tax brackets to determine your final tax bill.
+
+### 3.6 Inflation
+*   **Purpose:** To realistically model the declining purchasing power of money over time.
+*   **Logic:** At the start of each year, the model increases the value of all ongoing expenses, inflation-adjusted income streams, and the tax brackets themselves, based on the appropriate inflation rate for that scenario.
+
+---
+
+## Part 4: Interpreting the Results
+
+The program generates a summary report named `summary_report_final_v8.csv` in the `reports/` directory.
+
+| Column | How to Interpret It |
+| :--- | :--- |
+| `Scenario Name` | The descriptive name of the strategy being tested. |
+| `Total Lifetime Taxes` | The sum of all federal income taxes paid over the entire simulation. A key metric for comparing the tax efficiency of different strategies. |
+| `Total IRMAA Paid` | The sum of all Medicare premium surcharges paid. This column reveals the hidden costs of high-income years, especially those with large Roth conversions. |
+| `Final Portfolio Value`| The total market value of all your accounts at the end of the simulation. This is a measure of the wealth you preserve or pass on. |
+| `Age Portfolio Depleted`| If your money runs out, this shows the age at which it happened. **`N/A` is the goal**—it means your plan was successful for the entire projection. |
+
+**How to Compare Scenarios:** There is no single "best" scenario. You must weigh the trade-offs. A strategy might result in the lowest lifetime taxes but also a lower final portfolio value. Another might maximize your final estate but require more risk. The goal is to use this report to find the strategy that best aligns with your personal priorities.
+
+---
+
+## Part 5: Advanced Usage & Maintenance
+
+### 5.1 Running New Scenarios
+This is the most powerful feature of the program. You can easily test new strategies by editing the `SCENARIOS_TO_RUN` list near the top of the `retirement_model_v8.py` script. Simply copy an existing scenario block, paste it, and change the parameters. For example, to test a smaller Roth conversion, you could add:
+
+```python
+    {
+        'name': '6. Max SS + Small $30k Roth',
+        'john_ss_age': 70,
+        'jane_ss_age': 70,
+        'roth_strategy': 'fixed_amount',
+        'roth_amount': 30000, # Changed from 80000
+        'roth_end_year': 2034
+    }
+```
+
+### 5.2 Annual Maintenance Plan
+To keep the simulator accurate, you should update its data once a year.
+
+| What to Update | Where to Update | How to Find the Data |
+| :--- | :--- | :--- |
+| **Account Balances**| `accounts.csv` | Log into your financial institutions and record the year-end balances. |
+| **Tax Brackets** | `BASE_FEDERAL_TAX_BRACKETS` in the `.py` file. | In late Q4, search online for "**IRS income tax brackets for tax year [upcoming year]**". |
+| **Standard Deduction** | `BASE_FEDERAL_STANDARD_DEDUCTION` in the `.py` file.| This is usually announced at the same time as the tax brackets. |
+| **IRMAA Brackets** | `MEDICARE_IRMAA_BRACKETS` in the `.py` file.| In late Q4, search online for "**Medicare IRMAA brackets for year [upcoming year]**". |
+| **RMD Table** | `IRS_UNIFORM_LIFETIME_TABLE` in the `.py` file.| This table changes very infrequently, but it's good to check every few years. Search for "**IRS Uniform Lifetime Table**". |
+
+---
+
+## Part 6: Conclusion
+
+This retirement simulator is a robust tool designed to bring clarity to complex financial decisions. By taking the time to provide accurate input data and to understand the key calculations, you can generate powerful, personalized insights into your financial future. Use it to explore possibilities, stress-test your assumptions, and build confidence in your retirement plan.

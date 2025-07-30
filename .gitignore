@@ -1,0 +1,22 @@
+# --- Subdirectories with Personal Data ---
+# This is the most critical section. It ignores all your personal financial
+# data and the reports generated from it.
+input_files/
+reports/
+
+# --- Python Specific ---
+# Ignores the folder where Python stores compiled bytecode
+__pycache__/
+# Ignores virtual environment folders (good practice)
+venv/
+env/
+*.egg-info/
+
+# --- VSCode Specific ---
+# Ignores the folder where VSCode stores your personal workspace settings
+.vscode/
+
+# --- Operating System Specific ---
+# Ignores system files created by macOS and Windows
+.DS_Store
+Thumbs.db
