@@ -1,6 +1,0 @@
-account_name,account_type,balance,annual_growth_rate,annual_rate
-John's Rollover IRA,Traditional,812000,0.06,0
-Jane's 401k,Traditional,455000,0.06,0
-Jane's Roth IRA,Roth,151000,0.07,0
-Fidelity Brokerage,Brokerage,520000,0.07,0.015
-Savings Account,Cash,75000,0.04,0.04
