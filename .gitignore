@@ -2,7 +2,6 @@
 # This is the most critical section. It ignores all your personal financial
 # data and the reports generated from it.
 input_files/
-input_files_sample/
 reports/
 
 # --- Python Specific ---
