@@ -1,0 +1,5 @@
+expense_name,annual_amount,start_year,end_year,inflation_category
+Base Living Expenses,70000,2025,2060,General
+Medicare & Health,12000,2025,2060,Healthcare
+New Car Purchase,40000,2028,2028,General
+LTC Event,100000,2050,2052,Healthcare
