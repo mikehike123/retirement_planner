@@ -24,12 +24,15 @@ This project is a retirement planner that models financial scenarios based on us
 
 *   Any currency should be rounded to the nearest whole dollar for the output reports.
 *   **IMPORTANT:** Do not use the `input_files - sample` directory for any reason. Always use the `input_files` directory.
+*   The state tax feature will not be implemented as the user lives in a state with no state tax.
 
 ## Future Enhancements
 
 ### High Priority
-- [] In "Max SS + Fill 22% Bracket_yearly.csv" report, IRMAA  values in reports seem much too high.  Please review for logic errors.
-- [] In "Max SS + Fill 22% Bracket_yearly.csv" report, RMD values in reports seem much too high to stay below the 22% tax bracket.  Please review for logic errors.
+- [x] Logic Bug: Roth conversion amounts are withdrawn *after* annual growth is calculated, causing the converted amount to earn returns in both Traditional and Roth accounts in the same year. This inflates the final portfolio value.
+- [x] In "Max SS + Fill 22% Bracket_yearly.csv" report, IRMAA  values in reports seem much too high.  Please review for logic errors.
+- [x] In "Max SS + Fill 22% Bracket_yearly.csv" report, RMD values in reports seem much too high to stay below the 22% tax bracket.  Please review for logic errors.
+- [x] Review logic to how income_on_accounts is being calculated currently and modify instructions.md to capture this change.  Also add any columns not mentioned in documents and describe what they are and how they are calculated.  Review part 3 and modify if the logic of how income_on_accounts is being calculated has changed these assumptions.
 
 ### Completed Tasks
 - [x] Round all currency values in output reports to the nearest whole dollar.
@@ -52,3 +55,4 @@ This project is a retirement planner that models financial scenarios based on us
 - [x] Move age columns between Total Expenses and RMD columns.
 - [x] Increase Property Taxes by 7% per year.
 - [x] Read the program file `retirement_model_v9.py` and `Instructions.md` to understand the logic.
+- 

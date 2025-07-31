@@ -42,16 +42,21 @@ SCENARIOS_TO_RUN = [
         'Mike_ss_age': 67, 'Cindy_ss_age': 67, 'roth_strategy': 'none',
     },
     {
-        'name': '2. Maximize SS (SS @ 70, No Roth)',
+        'name': '2. Baseline (SS @ 67, Roth $50K)',
+        'Mike_ss_age': 67, 'Cindy_ss_age': 67, 'roth_strategy': 'till_2028',
+        'roth_amount': 50000, 'roth_end_year': 2028
+    },
+    {
+        'name': '3. Maximize SS (SS @ 70, No Roth)',
         'Mike_ss_age': 70, 'Cindy_ss_age': 70, 'roth_strategy': 'none',
     },
     {
-        'name': '3. Max SS + Fill 22% Bracket',
+        'name': '4. Max SS + Fill 22% Bracket',
         'Mike_ss_age': 70, 'Cindy_ss_age': 70, 'roth_strategy': 'fill_bracket',
         'roth_target_bracket_rate': 0.22, 'roth_end_year': 2034
     },
     {
-        'name': '4. Max SS + Fixed $80k Roth',
+        'name': '5. Max SS + Fixed $80k Roth',
         'Mike_ss_age': 70, 'Cindy_ss_age': 70, 'roth_strategy': 'fixed_amount',
         'roth_amount': 80000, 'roth_end_year': 2034
     },
@@ -151,22 +156,10 @@ def run_single_scenario(scenario_config):
         
         start_of_year_balances = accounts_df.copy()
         prior_trad_bal = start_of_year_balances[start_of_year_balances['account_type'] == 'Traditional']['balance'].sum()
-        
-        accounts_df['balance'] *= (1 + accounts_df['annual_growth_rate'])
-        
-        tax_on_growth = 0
-        for index, row in start_of_year_balances.iterrows():
-            if row['account_type'] in ['Brokerage', 'Cash']:
-                growth = accounts_df.loc[index, 'balance'] - row['balance']
-                tax_on_growth += growth * row['annual_tax_rate']
-        
-        pension_income = pensions[(pensions['start_year'] <= current_year) & (pensions['end_year'] >= current_year)]['annual_amount'].sum()
-        person1_ss_payment = person1_ss_benefit if current_age >= scenario_config[person1_ss_age_key] else 0
-        person2_ss_payment = person2_ss_benefit if current_age >= scenario_config[person2_ss_age_key] else 0
-        ss_income = person1_ss_payment + person2_ss_payment
 
+        # --- Roth Conversion (Happens at Start of Year, Before Growth) ---
         roth_conversion_amount = 0
-        preliminary_taxable_income = pension_income
+        preliminary_taxable_income = pensions[(pensions['start_year'] <= current_year) & (pensions['end_year'] >= current_year)]['annual_amount'].sum()
         if current_year <= scenario_config.get('roth_end_year', 0):
             if scenario_config.get('roth_strategy') == 'fixed_amount':
                 roth_conversion_amount = scenario_config.get('roth_amount', 0)
@@ -175,7 +168,29 @@ def run_single_scenario(scenario_config):
                 if rate in inflated_brackets:
                     target_top = inflated_brackets[rate][1]
                     roth_conversion_amount = max(0, target_top - (preliminary_taxable_income - inflated_deduction))
-        roth_conversion_amount = max(0, min(roth_conversion_amount, prior_trad_bal))
+            elif scenario_config.get('roth_strategy') == 'till_2028':
+                roth_conversion_amount = scenario_config.get('roth_amount', 0)
+
+        if roth_conversion_amount > 0:
+            roth_conversion_amount = max(0, min(roth_conversion_amount, prior_trad_bal))
+            withdraw_from_account(accounts_df, roth_conversion_amount, 'Traditional')
+            accounts_df.loc[accounts_df['account_type'] == 'Roth', 'balance'] += roth_conversion_amount
+        
+        # --- Account Growth ---
+        accounts_df['balance'] *= (1 + accounts_df['annual_growth_rate'])
+        
+        income_on_accounts = 0
+        for index, row in start_of_year_balances.iterrows():
+            if row['account_type'] in ['Brokerage', 'Cash']:
+                balance = row['balance']
+                annual_rate = row['annual_rate']
+                income_on_accounts += balance *  annual_rate
+                
+        
+        pension_income = pensions[(pensions['start_year'] <= current_year) & (pensions['end_year'] >= current_year)]['annual_amount'].sum()
+        person1_ss_payment = person1_ss_benefit if current_age >= scenario_config[person1_ss_age_key] else 0
+        person2_ss_payment = person2_ss_benefit if current_age >= scenario_config[person2_ss_age_key] else 0
+        ss_income = person1_ss_payment + person2_ss_payment
         
         rmd_amount = 0
         if current_age >= 75: rmd_amount = prior_trad_bal / IRS_UNIFORM_LIFETIME_TABLE.get(current_age, 8.9)
@@ -188,9 +203,10 @@ def run_single_scenario(scenario_config):
         if cash_needed_for_spending > 0:
              non_retirement_cash = accounts_df.loc[accounts_df['account_type'].isin(['Cash', 'Brokerage']), 'balance'].sum()
              traditional_withdrawal = max(0, cash_needed_for_spending - non_retirement_cash)
+
         traditional_withdrawal = max(rmd_amount, traditional_withdrawal)
         
-        AGI_Proxy = pension_income + roth_conversion_amount + traditional_withdrawal
+        AGI_Proxy = pension_income + roth_conversion_amount + traditional_withdrawal + income_on_accounts
         MAGI = AGI_Proxy + ss_income
         
         if MAGI > inflated_brackets.get(0.22, (float('inf'),))[0]: final_taxable_income = AGI_Proxy + (ss_income * 0.85)
@@ -199,13 +215,10 @@ def run_single_scenario(scenario_config):
             
         tax_from_ordinary_income = calculate_federal_tax(final_taxable_income, filing_status, inflated_brackets, inflated_deduction)
         
-        federal_tax = tax_from_ordinary_income + tax_on_growth
+        federal_tax = tax_from_ordinary_income 
         total_taxes_paid += federal_tax
         
         cash_needed_from_portfolio = cash_needed_for_spending + federal_tax
-        if roth_conversion_amount > 0:
-            withdraw_from_account(accounts_df, roth_conversion_amount, 'Traditional')
-            accounts_df.loc[accounts_df['account_type'] == 'Roth', 'balance'] += roth_conversion_amount
             
         withdrawn_so_far = 0
         withdrawal_hierarchy = ['Cash', 'Brokerage', 'Traditional', 'Roth']
@@ -217,10 +230,10 @@ def run_single_scenario(scenario_config):
         
         current_year_data = {
             'Year': current_year, f'{person1_name} (age)': current_age, f'{person2_name} (age)': current_age,
-            'AGI_Proxy': AGI_Proxy, 'MAGI': MAGI, 'Pension Income': pension_income, 'Total SS': ss_income,
+            'AGI_Proxy': AGI_Proxy, 'MAGI': MAGI, "Accounts Income":income_on_accounts, 'Pension Income': pension_income, 'Total SS': ss_income,
             f'{person1_name} SS': person1_ss_payment, f'{person2_name} SS': person2_ss_payment,
-            'Total Expenses': year_expenses, 'Tax on Growth': tax_on_growth, 'Roth Conversion': roth_conversion_amount,
-            'RMD': rmd_amount, 'Federal Taxes': federal_tax, 'IRMAA': irmaa_surcharge,
+            'Total Expenses': year_expenses, 'Roth Conversion': roth_conversion_amount,
+            'RMD': rmd_amount, "Final Taxable Income":final_taxable_income, "Tax Ordinary Income": tax_from_ordinary_income,'Federal Taxes': federal_tax, 'IRMAA': irmaa_surcharge,
             'Total Savings': accounts_df['balance'].sum(), 'Cash Balance': accounts_df[accounts_df['account_type'] == 'Cash']['balance'].sum(),
             'Brokerage Balance': accounts_df[accounts_df['account_type'] == 'Brokerage']['balance'].sum(),
             'Traditional Balance': accounts_df[accounts_df['account_type'] == 'Traditional']['balance'].sum(),

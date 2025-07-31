@@ -12,25 +12,21 @@ This section should be added between **Part 3: The Simulation Engine** and **Par
 
 This simulator is a powerful strategic tool, but it is not a perfect representation of the entire U.S. tax code. To keep the model manageable and focused, several important simplifications have been made. It is critical to understand these assumptions when interpreting the results.
 
-#### **1. Federal Tax Calculation (The Biggest Simplification)**
-*   **The Simplification:** The model calculates a `Tax on Growth` for your `Brokerage` and `Cash` accounts using your estimated `annual_tax_rate`. It then calculates taxes on all other income (Pensions, RMDs, taxable Social Security, etc.) using the standard ordinary income tax brackets. It does not have a separate, parallel tax system for long-term capital gains and qualified dividends.
-*   **The Impact:** This approach is **intentionally conservative**. It will likely **overestimate the taxes** you pay in a given year compared to reality, where qualified dividends and long-term capital gains from your brokerage account would be taxed at lower rates.
-*   **Why It's Acceptable:** Because this conservative tax treatment is applied consistently across all scenarios, the *comparison* between them remains valid and meaningful. If the model shows a plan is successful under these higher tax assumptions, it will be even more successful in the real world.
+#### **1. Taxation of Taxable Account Growth (The Biggest Simplification)**
+*   **The Simplification:** The model significantly simplifies how investment returns in `Brokerage` and `Cash` accounts are taxed. Instead of tracking capital gains and dividends separately, it calculates the total estimated growth for the year (`income_on_accounts`) and adds this amount directly to your other ordinary income (pensions, RMDs, taxable Social Security, etc.). This entire amount is then taxed together using the standard federal income tax brackets. The model does not use a separate, lower tax rate for long-term capital gains or qualified dividends. The `annual_tax_rate` column in `accounts.csv` is **not used** in the final tax calculation.
+*   **The Impact:** This approach is **intentionally conservative**. It will likely **overestimate the taxes** you pay in a given year compared to reality, where qualified dividends and long-term capital gains would be taxed at lower rates. Because the growth is taxed annually as income, subsequent withdrawals of principal *or* gains from these accounts are treated as simple transfers and are not taxed again. This abstracts away the need to track cost basis.
+*   **Why It's Acceptable:** Because this conservative tax treatment is applied consistently across all scenarios, the *comparison* between them remains valid and meaningful. If a plan is successful under these higher tax assumptions, it will likely be even more successful in the real world.
 
 #### **2. State and Local Taxes**
 *   **The Simplification:** The model **does not calculate state or local income taxes**. The `state` parameter in `config.csv` is a placeholder for future development.
 *   **The Impact:** The `Total Lifetime Taxes` reported is for **federal taxes only**. Your actual lifetime tax burden will be higher, especially if you live in a high-income-tax state.
 *   **How to Mitigate:** You can approximate state taxes by adding a new line item to your `annual_expenses.csv` file called "State Taxes" with your best estimate of the annual cost.
 
-#### **3. Withdrawal of Principal vs. Gains**
-*   **The Simplification:** In the simplified "Tax on Growth" model, we assume all growth is taxed annually based on your `annual_tax_rate`. The subsequent withdrawal of principal from `Cash` and `Brokerage` accounts is then treated as a non-taxable event.
-*   **The Impact:** This is an abstraction of reality. In the real world, you are taxed only on the *profit portion* of any shares you sell (the capital gain). Our model's approach effectively "pre-pays" the tax on the growth each year instead of at the moment of sale. This simplifies the model by eliminating the need to track cost basis for every investment.
-
-#### **4. Social Security Taxability Thresholds**
+#### **3. Social Security Taxability Thresholds**
 *   **The Simplification:** The model uses the lower boundaries of the inflation-adjusted 12% and 22% tax brackets as proxies for the official Social Security taxability thresholds ($32,000 and $44,000 for MFJ, before inflation).
 *   **The Impact:** This is a very close and reasonable approximation. Since the official thresholds are also indexed to inflation, using the tax brackets as a stand-in ensures that the trigger points for Social Security taxation rise realistically over time.
 
-#### **5. Single Age Assumption**
+#### **4. Single Age Assumption**
 *   **The Simplification:** The model assumes both partners are the same age for the purpose of the main simulation loop (`current_age = 63 + i`).
 *   **The Impact:** This has a negligible effect on the overall financial outcome. RMDs are based on individual ages, but our model simplifies this to a single age for the lookup. The most important age-related calculations (Social Security claiming and Medicare start) are handled correctly based on the specific ages you define in the scenarios.
 
@@ -142,6 +138,7 @@ Lists all your financial accounts.
 | `balance` | The starting balance of the account. |
 | `annual_growth_rate`| The estimated **TOTAL** annual return for the account. |
 | `annual_tax_rate` | The "fudged" annual tax rate on the *growth* of `Brokerage` and `Cash` accounts. For `Traditional` and `Roth`, this must be `0`. |
+| `annual_rate` | The estimated annual rate of return for the account. |
 
 ### 2.3 `income_streams.csv`
 For external, non-Social Security income.
@@ -244,14 +241,17 @@ Saved in the `reports/yearly/` subdirectory, these detailed spreadsheets are you
 | Column | Description & Calculation |
 | :--- | :--- |
 | `Year`, `[Name] (age)` | The current year and your age in that year. |
-| **`AGI_Proxy`** | **Calculated.** Our model's proxy for Adjusted Gross Income. This is the critical number used to determine if your Social Security is taxable. <br> *Calculation:* `Pension Income + Roth Conversion + Traditional Withdrawal` |
-| **`MAGI`** | **Calculated.** Our model's Modified Adjusted Gross Income, used to calculate IRMAA surcharges. <br> *Calculation:* `AGI_Proxy + Total SS` |
+| **`Accounts Income`**| **Calculated.** This is the income generated from taxable accounts. It is calculated by summing the `Balance` multiplied by the `annual_rate` for all `Taxable` accounts at the beginning of the year. |
+| **`AGI_Proxy`** | **Calculated.** Our model's proxy for Adjusted Gross Income. This is the critical number used to determine if your Social Security is taxable. <br> *Calculation:* `Pension Income` + `Roth Conversion` + `Traditional Withdrawal` + `Accounts Income` |
+| **`MAGI`** | **Calculated.** Our model's Modified Adjusted Gross Income, used to calculate IRMAA surcharges. <br> *Calculation:* `AGI_Proxy` - `Traditional Withdrawal` + `Total SS` |
 | `Pension Income` | The inflated value of any pension for that year. |
 | `Total SS`, `[Name] SS` | The inflated Social Security benefits paid out in that year, based on your claiming age. |
 | `Total Expenses` | **Calculated.** The total spending for the year. <br> *Calculation:* `Sum of all active, inflated expenses + IRMAA surcharge` |
 | `Tax on Growth` | **Calculated.** The tax paid on the growth of your non-retirement accounts. <br> *Calculation:* `Sum of (growth this year * annual_tax_rate)` for all `Brokerage` and `Cash` accounts. |
 | `Roth Conversion` | The amount converted from a Traditional to a Roth account in that year. |
 | `RMD` | **Calculated.** Your Required Minimum Distribution. It appears only at age 75+. <br> *Calculation:* `Prior year-end Traditional balance / IRS factor for current age` |
+| `Final Taxable Income` | **Calculated.** This is the final taxable income used to calculate the federal tax. <br> *Calculation:* `AGI_Proxy` + (`Total SS` * 0.85) if `MAGI` is in the 22% tax bracket or higher, `AGI_Proxy` + (`Total SS` * 0.50) if `MAGI` is in the 12% tax bracket, or `AGI_Proxy` otherwise. |
+| `Tax Ordinary Income` | **Calculated.** This is the tax calculated on the `Final Taxable Income`. <br> *Calculation:* `calculate_federal_tax(Final Taxable Income, filing_status, inflated_brackets, inflated_deduction)` |
 | `Federal Taxes` | **Calculated.** Your final federal income tax bill for the year. <br> **Calculation:** This is the final step in the tax waterfall. It is calculated by taking your `final_taxable_income` and applying the progressive tax brackets for the year after subtracting the standard deduction. The code equivalent is: <br> `calculate_federal_tax(final_taxable_income, filing_status, inflated_brackets, inflated_deduction)` |
 | `IRMAA` | **Calculated.** Your annual Medicare premium surcharge. <br> *Calculation:* Based on your `MAGI` from two years prior. |
 | `Total Savings` | **Calculated.** The sum of all account balances at the end of the year. |
@@ -280,3 +280,34 @@ To keep the simulator accurate, you should update its data once a year.
 ## Part 6: Conclusion
 
 This retirement simulator is a robust tool designed to bring clarity to complex financial decisions. By taking the time to provide accurate input data and to understand the key calculations, you can generate powerful, personalized insights into your financial future. Use it to explore possibilities, stress-test your assumptions, and build confidence in your retirement plan.
+
+---
+
+## Part 7: Future Enhancements
+
+### 7.1 Advanced Taxation Model for Brokerage Accounts
+
+The current model simplifies the taxation of brokerage accounts by treating all returns as ordinary income. While this is a conservative and safe assumption, a more precise model could be implemented in the future to better reflect the U.S. tax code for investments in equities.
+
+**Proposed Change:** Implement a dual-rate tax system that distinguishes between ordinary income and capital gains/qualified dividends.
+
+**Input File Changes (`accounts.csv`):**
+
+To support this, the `accounts.csv` file would be enhanced with additional columns for brokerage accounts:
+
+| Column | Description |
+| :--- | :--- |
+| `dividend_yield` | The portion of the account's growth that is paid out as dividends. |
+| `percent_qualified` | The percentage of those dividends that are "qualified" for lower tax rates. |
+| `cost_basis_ratio` | The percentage of the account's value that is original principal (cost basis). This is essential for calculating the taxable gain when shares are sold. |
+
+For `Cash` accounts, these new fields would be left blank.
+
+**Simulation Logic Changes:**
+
+1.  **Separate Income Buckets:** The simulation would maintain two distinct income buckets: one for ordinary income and one for capital gains.
+2.  **Dividend Handling:** Annual dividend income would be calculated and split into qualified (taxed at capital gains rates) and non-qualified (taxed as ordinary income).
+3.  **Capital Gains on Sale:** When assets are withdrawn from a brokerage account to cover expenses, the model would use the `cost_basis_ratio` to calculate the realized capital gain, which would then be taxed at the appropriate capital gains rate.
+4.  **Final Tax Calculation:** The total federal tax for the year would be the sum of the tax calculated on ordinary income and the tax calculated on capital gains, each using their respective tax brackets.
+
+This enhancement would provide a much more accurate picture of tax liability, especially for portfolios with a significant allocation to equities.
