@@ -35,6 +35,7 @@ This project is a retirement planner that models financial scenarios based on us
 - [x] Review logic to how income_on_accounts is being calculated currently and modify instructions.md to capture this change.  Also add any columns not mentioned in documents and describe what they are and how they are calculated.  Review part 3 and modify if the logic of how income_on_accounts is being calculated has changed these assumptions.
 
 ### Completed Tasks
+- [x] Logic Bug: The `annual_rate` column in `accounts.csv` was not being read, causing incorrect income calculations.
 - [x] Round all currency values in output reports to the nearest whole dollar.
 - [x] Add yearly tabulations for each scenario.
     - [x] Each scenario will have a separate csv file located in the "yearly" subdirectory.
@@ -55,4 +56,4 @@ This project is a retirement planner that models financial scenarios based on us
 - [x] Move age columns between Total Expenses and RMD columns.
 - [x] Increase Property Taxes by 7% per year.
 - [x] Read the program file `retirement_model_v9.py` and `Instructions.md` to understand the logic.
-- 
+-

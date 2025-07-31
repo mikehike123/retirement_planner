@@ -72,7 +72,7 @@ SCENARIOS_TO_RUN = [
 def load_data():
     try:
         config_df = pd.read_csv(INPUT_DIR / 'config.csv').set_index('parameter')['value']
-        accounts_df = pd.read_csv(INPUT_DIR / 'accounts.csv', dtype={'balance': float, 'annual_tax_rate': float})
+        accounts_df = pd.read_csv(INPUT_DIR / 'accounts.csv', dtype={'balance': float, 'annual_rate': float})
         income_df = pd.read_csv(INPUT_DIR / 'income_streams.csv', dtype={'annual_amount': float})
         ss_df = pd.read_csv(INPUT_DIR / 'social_security.csv', dtype={'fra_benefit': float})
         expenses_df = pd.read_csv(INPUT_DIR / 'annual_expenses.csv', dtype={'annual_amount': float})
@@ -80,7 +80,7 @@ def load_data():
         accounts_df['account_type'] = accounts_df['account_type'].replace('Taxable', 'Brokerage')
         return config_df, accounts_df, income_df, ss_df, expenses_df
     except (FileNotFoundError, ValueError, KeyError) as e:
-        print(f"FATAL ERROR in loading data. Check your CSV files in '{INPUT_DIR}'. Ensure 'annual_tax_rate' column exists in accounts.csv. Error: {e}"); sys.exit()
+        print(f"FATAL ERROR in loading data. Check your CSV files in '{INPUT_DIR}'. Error: {e}"); sys.exit()
 
 def calculate_ss_benefit(fra_benefit, fra_age, claim_age):
     if claim_age == fra_age: return fra_benefit
