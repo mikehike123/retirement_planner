@@ -33,6 +33,7 @@ This project is a retirement planner that models financial scenarios based on us
 - [x] In "Max SS + Fill 22% Bracket_yearly.csv" report, IRMAA  values in reports seem much too high.  Please review for logic errors.
 - [x] In "Max SS + Fill 22% Bracket_yearly.csv" report, RMD values in reports seem much too high to stay below the 22% tax bracket.  Please review for logic errors.
 - [x] Review logic to how income_on_accounts is being calculated currently and modify instructions.md to capture this change.  Also add any columns not mentioned in documents and describe what they are and how they are calculated.  Review part 3 and modify if the logic of how income_on_accounts is being calculated has changed these assumptions.
+- [ ] Add CAGR calculations to code and add it column in the summary_report_final.csv.  Also add calculations for Present Value of Portfolion Final Value  and add it to report as well.
 
 ### Completed Tasks
 - [x] Logic Bug: The `annual_rate` column in `accounts.csv` was not being read, causing incorrect income calculations.
