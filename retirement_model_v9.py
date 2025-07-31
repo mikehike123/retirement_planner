@@ -61,7 +61,7 @@ SCENARIOS_TO_RUN = [
         'roth_amount': 80000, 'roth_end_year': 2034
     },
     {
-        'name': '5. HIGH INFLATION (Max SS, No Roth)',
+        'name': '6. HIGH INFLATION (Max SS, No Roth)',
         'Mike_ss_age': 70, 'Cindy_ss_age': 70, 'roth_strategy': 'none',
         'inflation_rate_general': 0.045, 'inflation_rate_healthcare': 0.065
     }
