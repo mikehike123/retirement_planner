@@ -145,6 +145,53 @@ Lists all your planned expenses.
 
 The inclusion of `start_year` and `end_year` columns is particularly powerful. It allows you to model your financial life with greater accuracy by planning for expenses that are not permanent. For example, you can account for a mortgage payment that ends in a specific year, a car loan with a defined term, or special, one-time expenditures like a major trip or home renovation.
 
+### 3.6 Sample Input Files
+Here are five examples of what your input CSV files might look like for a hypothetical couple, Jack and Jane.
+
+#### **`config.csv`**
+```csv
+parameter,value
+start_year,2025
+projection_years,35
+federal_filing_status,Married Filing Jointly
+state,Florida
+inflation_rate_general,0.03
+inflation_rate_healthcare,0.05```
+
+#### **`accounts.csv`**
+```csv
+account_name,account_type,balance,annual_rate
+Joint Brokerage,Brokerage,750000,0.06
+Jack IRA,Traditional,450000,0.05
+Jane IRA,Traditional,500000,0.05
+Jack Roth,Roth,150000,0.06
+Jane Roth,Roth,200000,0.06
+Joint Savings,Cash,100000,0.025
+```
+
+#### **`income_streams.csv`**
+```csv
+stream_name,annual_amount,start_year,end_year,is_inflation_adjusted
+Jack Pension,15000,2027,2060,TRUE
+```
+
+#### **`social_security.csv`**
+```csv
+person_name,fra_benefit,fra_age
+Jack,36000,67
+Jane,24000,67
+```
+
+#### **`annual_expenses.csv`**
+```csv
+expense_name,annual_amount,start_year,end_year,inflation_category,custom_inflation_rate
+General Living,60000,2025,2060,General,
+Healthcare,12000,2025,2060,Healthcare,
+Mortgage,24000,2025,2035,Custom,0.0
+New Car Loan,7000,2026,2030,General,
+European Vacation,15000,2028,2028,General,
+```
+
 ---
 
 ## Part 4: The Simulation Engine - Calculations & Data
