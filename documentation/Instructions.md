@@ -1,14 +1,3 @@
-Of course! That's a critical feature for realistic planning, and it absolutely deserves to be highlighted more prominently. A financial plan isn't static, and modeling temporary expenses is a key part of getting an accurate picture.
-
-I have updated the documentation to emphasize this capability in two key places:
-
-1.  I've added it as a new bullet point in **Part 1: Key Features at a Glance**.
-2.  I've added a more descriptive paragraph in **Part 3: The User Guide** under the `annual_expenses.csv` section to explain its practical use.
-
-Here is the final, polished version of the complete documentation.
-
-***
-
 # Retirement Portfolio & Tax Simulator: Documentation (Final Version)
 
 ## Introduction
