@@ -74,65 +74,90 @@ SCENARIOS_TO_RUN = [
 
 # --- Helper Functions ---
 
+def validate_dataframe_column(df, column_name, allowed_values, df_name):
+    """Checks if all values in a DataFrame column are within a set of allowed values."""
+    if column_name not in df.columns:
+        return # Column doesn't exist, nothing to validate
+
+    allowed_set = set(allowed_values)
+    # Get unique values from the column, ignoring any empty/NaN values
+    user_values = set(df[column_name].dropna().unique())
+
+    # Find the values present in the user's data that are not in the allowed set
+    invalid_entries = user_values - allowed_set
+
+    if invalid_entries:
+        print(f"\n--- FATAL INPUT ERROR ---")
+        print(f"Invalid value(s) found in the '{column_name}' column of '{df_name}'.")
+        print(f"The following invalid entries were found: {sorted(list(invalid_entries))}")
+        print(f"Allowed values for this column are: {sorted(list(allowed_set))}")
+        print("Please correct your input file and run the simulation again.")
+        print("-------------------------\n")
+        sys.exit()
+
+
 def load_data():
-    # Read all CSV files into pandas DataFrames first
     try:
-        config_df = pd.read_csv(INPUT_DIR / 'config.csv')
+        # --- Define Allowed Values for Categorical Data (all lowercase) ---
+        ALLOWED_ACCOUNT_TYPES = {'cash', 'brokerage', 'traditional', 'roth', 'taxable'}
+        ALLOWED_INFLATION_CATEGORIES = {'general', 'healthcare','custom'}
+        ALLOWED_FILING_STATUSES = {'married filing jointly'}
 
-        account_column_names = [
-            'account_name',
-            'account_type',
-            'balance',
-            'annual_rate'
-        ]
-        expense_column_names = [
-            'expense_name', 'start_year', 'end_year', 'annual_amount',
-            'inflation_category', 'custom_inflation_rate'
-        ]
-        income_column_names = [
-            'stream_name', 'annual_amount', 'start_year', 'end_year', 
-            'is_inflation_adjusted'
-        ]
-        ss_column_names = [
-            'person_name', 'fra_benefit', 'fra_age'
-        ]
-        accounts_df = pd.read_csv(
-            INPUT_DIR / 'accounts.csv',
-            names=account_column_names, # Use our defined names
-            header=0,                   # Treat row 0 as a header to be replaced
-            dtype={'annual_rate': float}
-        )
-        income_df = pd.read_csv(
-            INPUT_DIR / 'income_streams.csv',
-            names=income_column_names, header=0,
-            dtype={'annual_amount': float}
-        )
-        ss_df = pd.read_csv(
-            INPUT_DIR / 'social_security.csv',
-            names=ss_column_names, header=0,
-            dtype={'fra_benefit': float}
-        )
-        expenses_df = pd.read_csv(
-            INPUT_DIR / 'annual_expenses.csv',
-            names=expense_column_names, header=0,
-            dtype={'annual_amount': float}
-        )
- 
-        # Strip whitespace from all string/object columns in each DataFrame
+        # --- Define Column Names for All Input Files ---
+        config_column_names = ['parameter', 'value']
+        account_column_names = ['account_name', 'account_type', 'balance', 'annual_rate']
+        expense_column_names = ['expense_name', 'start_year', 'end_year', 'annual_amount', 'inflation_category', 'custom_inflation_rate']
+        income_column_names = ['stream_name', 'annual_amount', 'start_year', 'end_year', 'is_inflation_adjusted']
+        ss_column_names = ['person_name', 'fra_benefit', 'fra_age']
+
+        # --- Robustly Load, Standardize, and Validate All CSVs ---
+        config_df = pd.read_csv(INPUT_DIR / 'config.csv', names=config_column_names, header=0)
+        
+        # Standardize and validate filing status
+        status_param = 'federal_filing_status'
+        filing_status_series = config_df.loc[config_df['parameter'] == status_param, 'value']
+        
+        if filing_status_series.empty:
+            print(f"FATAL ERROR: The parameter '{status_param}' was not found in config.csv.")
+            sys.exit()
+
+        original_status = filing_status_series.iloc[0]
+        clean_status = original_status.strip().lower()
+
+        if clean_status not in ALLOWED_FILING_STATUSES:
+             print(f"\n--- FATAL INPUT ERROR ---")
+             print(f"Invalid value for 'federal_filing_status' in 'config.csv'.")
+             print(f"Found: '{original_status}'. Allowed options are: {list(ALLOWED_FILING_STATUSES)}")
+             sys.exit()
+        config_df.loc[config_df['parameter'] == status_param, 'value'] = clean_status
+        
+        accounts_df = pd.read_csv(INPUT_DIR / 'accounts.csv', names=account_column_names, header=0, dtype={'annual_rate': float})
+        accounts_df['account_type'] = accounts_df['account_type'].str.strip().str.lower()
+        validate_dataframe_column(accounts_df, 'account_type', ALLOWED_ACCOUNT_TYPES, 'accounts.csv')
+        
+        income_df = pd.read_csv(INPUT_DIR / 'income_streams.csv', names=income_column_names, header=0, dtype={'annual_amount': float})
+        ss_df = pd.read_csv(INPUT_DIR / 'social_security.csv', names=ss_column_names, header=0, dtype={'fra_benefit': float})
+        
+        expenses_df = pd.read_csv(INPUT_DIR / 'annual_expenses.csv', names=expense_column_names, header=0, dtype={'annual_amount': float})
+        if 'inflation_category' in expenses_df.columns:
+            expenses_df['inflation_category'] = expenses_df['inflation_category'].str.strip().str.lower()
+            validate_dataframe_column(expenses_df, 'inflation_category', ALLOWED_INFLATION_CATEGORIES, 'annual_expenses.csv')
+
+        # Strip whitespace from any remaining object columns
         for df in [config_df, accounts_df, income_df, ss_df, expenses_df]:
-            string_columns = df.select_dtypes(include=['object']).columns
-            for col in string_columns:
-                df[col] = df[col].str.strip()
+            for col in df.select_dtypes(include=['object']).columns:
+                if col not in ['account_type', 'inflation_category', 'value']:
+                     df[col] = df[col].str.strip()
 
-        # Now, perform the original data transformations
+        # Now, perform data transformations
         config_df = config_df.set_index('parameter')['value']
-        # Use 'Taxable' as a synonym for 'Brokerage' for backward compatibility
-        accounts_df['account_type'] = accounts_df['account_type'].replace('Taxable', 'Brokerage')
+        accounts_df['account_type'] = accounts_df['account_type'].replace('taxable', 'brokerage')
 
         return config_df, accounts_df, income_df, ss_df, expenses_df
     except (FileNotFoundError, ValueError, KeyError) as e:
         print(f"FATAL ERROR in loading data. Check your CSV files in '{INPUT_DIR}'. Error: {e}")
         sys.exit()
+
 
 def calculate_ss_benefit(fra_benefit, fra_age, claim_age):
     if claim_age == fra_age:
@@ -149,11 +174,13 @@ def calculate_ss_benefit(fra_benefit, fra_age, claim_age):
         return fra_benefit * (1 - reduction)
 
 def get_inflated_tax_data(year, start_year, inflation_rate, filing_status):
+    # filing_status is lowercase, but dictionary keys are Title Case
+    filing_status_key = filing_status.title()
     compounding_factor = (1 + inflation_rate) ** (year - start_year)
     inflated_brackets = {}
-    for rate, (lower, upper) in BASE_FEDERAL_TAX_BRACKETS[filing_status].items():
+    for rate, (lower, upper) in BASE_FEDERAL_TAX_BRACKETS[filing_status_key].items():
         inflated_brackets[rate] = (lower * compounding_factor, upper * compounding_factor)
-    inflated_deduction = BASE_FEDERAL_STANDARD_DEDUCTION[filing_status] * compounding_factor
+    inflated_deduction = BASE_FEDERAL_STANDARD_DEDUCTION[filing_status_key] * compounding_factor
     return inflated_brackets, inflated_deduction
 
 def calculate_federal_tax(taxable_income, filing_status, brackets, deduction):
@@ -166,6 +193,7 @@ def calculate_federal_tax(taxable_income, filing_status, brackets, deduction):
     return tax
 
 def withdraw_from_account(accounts_df, amount, acc_type):
+    # acc_type is expected to be lowercase
     balance = accounts_df.loc[accounts_df['account_type'] == acc_type, 'balance'].sum()
     withdrawal_amount = min(amount, balance)
     if balance > 0:
@@ -191,8 +219,9 @@ def plot_financial_overview(df, scenario_name, output_dir):
 
 def plot_savings_breakdown(df, scenario_name, output_dir):
     fig, ax = plt.subplots(figsize=(12, 8))
-    labels = ['Cash', 'Brokerage', 'Traditional', 'Roth']
+    labels = ['Cash', 'Brokerage', 'Traditional', 'Roth'] # Labels for the plot legend
     colors = ['#c7c7c7', '#4c72b0', '#dd8452', '#55a868']
+    # The DataFrame columns ('Cash Balance', etc.) are created explicitly in the loop
     ax.stackplot(df['Year'], df['Cash Balance'], df['Brokerage Balance'], df['Traditional Balance'], df['Roth Balance'], labels=labels, colors=colors)
     ax.set_title(f'Portfolio Composition: {scenario_name}', fontsize=16)
     ax.set_xlabel('Year', fontsize=12)
@@ -210,7 +239,7 @@ def plot_savings_breakdown(df, scenario_name, output_dir):
 
 def run_single_scenario(scenario_config):
     config_df, accounts_df, income_df, ss_df, expenses_df = load_data()
-    initial_portfolio_value = accounts_df['balance'].sum() # Capture initial value
+    initial_portfolio_value = accounts_df['balance'].sum()
 
     if 'custom_inflation_rate' not in expenses_df.columns:
         expenses_df['custom_inflation_rate'] = pd.NA
@@ -218,7 +247,7 @@ def run_single_scenario(scenario_config):
     accounts_df = accounts_df.copy()
     start_year = int(config_df['start_year'])
     projection_years = int(config_df['projection_years'])
-    filing_status = config_df['federal_filing_status']
+    filing_status = config_df['federal_filing_status'] # This is now lowercase
 
     inf_general = float(scenario_config.get('inflation_rate_general', config_df['inflation_rate_general']))
     inf_health = float(scenario_config.get('inflation_rate_healthcare', config_df['inflation_rate_healthcare']))
@@ -242,7 +271,8 @@ def run_single_scenario(scenario_config):
 
         for idx, row in expenses_df.iterrows():
             if current_year > row['start_year']:
-                rate = row['custom_inflation_rate'] if pd.notna(row['custom_inflation_rate']) else (inf_health if str(row['inflation_category']).strip().title() == 'Healthcare' else inf_general)
+                # The 'inflation_category' column is now guaranteed to be lowercase
+                rate = row['custom_inflation_rate'] if pd.notna(row['custom_inflation_rate']) else (inf_health if row['inflation_category'] == 'healthcare' else inf_general)
                 expenses_df.loc[idx, 'annual_amount'] *= (1 + rate)
         if current_age > scenario_config[person1_ss_age_key]:
             person1_ss_benefit *= (1 + inf_general)
@@ -262,7 +292,7 @@ def run_single_scenario(scenario_config):
         total_irmaa_paid += irmaa_surcharge
         
         start_of_year_balances = accounts_df.copy()
-        prior_trad_bal = start_of_year_balances[start_of_year_balances['account_type'] == 'Traditional']['balance'].sum()
+        prior_trad_bal = start_of_year_balances[start_of_year_balances['account_type'] == 'traditional']['balance'].sum()
 
         # --- Roth Conversion (Happens at Start of Year, Before Growth) ---
         roth_conversion_amount = 0
@@ -280,18 +310,18 @@ def run_single_scenario(scenario_config):
 
         if roth_conversion_amount > 0:
             roth_conversion_amount = max(0, min(roth_conversion_amount, prior_trad_bal))
-            withdraw_from_account(accounts_df, roth_conversion_amount, 'Traditional')
-            accounts_df.loc[accounts_df['account_type'] == 'Roth', 'balance'] += roth_conversion_amount
+            withdraw_from_account(accounts_df, roth_conversion_amount, 'traditional')
+            accounts_df.loc[accounts_df['account_type'] == 'roth', 'balance'] += roth_conversion_amount
         
         # --- Account Growth ---
         accounts_df['balance'] *= (1 + accounts_df['annual_rate'])
         
         income_on_accounts = 0
         for index, row in start_of_year_balances.iterrows():
-            if row['account_type'] in ['Brokerage', 'Cash']:
+            if row['account_type'] in ['brokerage', 'cash']:
                 balance = row['balance']
                 annual_rate = row['annual_rate']
-                income_on_accounts += balance *  annual_rate
+                income_on_accounts += balance * annual_rate
                 
         pension_income = pensions[(pensions['start_year'] <= current_year) & (pensions['end_year'] >= current_year)]['annual_amount'].sum()
         person1_ss_payment = person1_ss_benefit if current_age >= scenario_config[person1_ss_age_key] else 0
@@ -308,7 +338,7 @@ def run_single_scenario(scenario_config):
 
         traditional_withdrawal = 0
         if cash_needed_for_spending > 0:
-             non_retirement_cash = accounts_df.loc[accounts_df['account_type'].isin(['Cash', 'Brokerage']), 'balance'].sum()
+             non_retirement_cash = accounts_df.loc[accounts_df['account_type'].isin(['cash', 'brokerage']), 'balance'].sum()
              traditional_withdrawal = max(0, cash_needed_for_spending - non_retirement_cash)
 
         traditional_withdrawal = max(rmd_amount, traditional_withdrawal)
@@ -331,7 +361,8 @@ def run_single_scenario(scenario_config):
         cash_needed_from_portfolio = cash_needed_for_spending + federal_tax
             
         withdrawn_so_far = 0
-        withdrawal_hierarchy = ['Cash', 'Brokerage', 'Traditional', 'Roth']
+        # Withdrawal hierarchy must be all lowercase to match the standardized data
+        withdrawal_hierarchy = ['cash', 'brokerage', 'traditional', 'roth']
         for acc_type in withdrawal_hierarchy:
             needed = cash_needed_from_portfolio - withdrawn_so_far
             if needed <= 0:
@@ -345,10 +376,11 @@ def run_single_scenario(scenario_config):
             f'{person1_name} SS': person1_ss_payment, f'{person2_name} SS': person2_ss_payment,
             'Total Expenses': year_expenses, 'Roth Conversion': roth_conversion_amount,
             'RMD': rmd_amount, "Final Taxable Income":final_taxable_income, "Tax Ordinary Income": tax_from_ordinary_income,'Federal Taxes': federal_tax, 'IRMAA': irmaa_surcharge,
-            'Total Savings': accounts_df['balance'].sum(), 'Cash Balance': accounts_df[accounts_df['account_type'] == 'Cash']['balance'].sum(),
-            'Brokerage Balance': accounts_df[accounts_df['account_type'] == 'Brokerage']['balance'].sum(),
-            'Traditional Balance': accounts_df[accounts_df['account_type'] == 'Traditional']['balance'].sum(),
-            'Roth Balance': accounts_df[accounts_df['account_type'] == 'Roth']['balance'].sum()
+            'Total Savings': accounts_df['balance'].sum(),
+            'Cash Balance': accounts_df[accounts_df['account_type'] == 'cash']['balance'].sum(),
+            'Brokerage Balance': accounts_df[accounts_df['account_type'] == 'brokerage']['balance'].sum(),
+            'Traditional Balance': accounts_df[accounts_df['account_type'] == 'traditional']['balance'].sum(),
+            'Roth Balance': accounts_df[accounts_df['account_type'] == 'roth']['balance'].sum()
         }
         for _, row in expenses_df.iterrows():
             if row['start_year'] <= current_year <= row['end_year']:
@@ -360,17 +392,11 @@ def run_single_scenario(scenario_config):
                 current_year_data[key] = round(value)
         yearly_data_list.append(current_year_data)
         
-        # Check if portfolio was depleted (leaving a small buffer for float precision)
         if withdrawn_so_far < cash_needed_from_portfolio - 1:
             details_df = pd.DataFrame(yearly_data_list)
             summary = {
-                'Scenario Name': scenario_config['name'],
-                'Total Lifetime Taxes': total_taxes_paid,
-                'Total IRMAA Paid': total_irmaa_paid,
-                'Final Portfolio Value': 0,
-                'Present Value': 0, # PV is 0 if final value is 0
-                'CAGR': -1.0, # -100% CAGR if portfolio is depleted
-                'Age Portfolio Depleted': current_age
+                'Scenario Name': scenario_config['name'], 'Total Lifetime Taxes': total_taxes_paid, 'Total IRMAA Paid': total_irmaa_paid,
+                'Final Portfolio Value': 0, 'Present Value': 0, 'CAGR': -1.0, 'Age Portfolio Depleted': current_age
             }
             print("***********************************************************************")
             print(f"You have run out of money in {current_year} at the age of {current_age}.")
@@ -380,26 +406,16 @@ def run_single_scenario(scenario_config):
     # --- Calculations for surviving portfolios ---
     final_portfolio_value = accounts_df['balance'].sum()
     
-    # Calculate Present Value of Final Portfolio
     if projection_years > 0:
         present_value = final_portfolio_value / ((1 + inf_general) ** projection_years)
+        cagr = ((final_portfolio_value / initial_portfolio_value) ** (1 / projection_years) - 1) if initial_portfolio_value > 0 else 0.0
     else:
         present_value = final_portfolio_value
-
-    # Calculate CAGR
-    if projection_years > 0 and initial_portfolio_value > 0:
-        cagr = (final_portfolio_value / initial_portfolio_value) ** (1 / projection_years) - 1
-    else:
-        cagr = 0.0 # No growth if no time or no initial investment
+        cagr = 0.0
 
     summary = {
-        'Scenario Name': scenario_config['name'],
-        'Total Lifetime Taxes': total_taxes_paid,
-        'Total IRMAA Paid': total_irmaa_paid,
-        'Final Portfolio Value': final_portfolio_value,
-        'Present Value': present_value,
-        'CAGR': cagr,
-        'Age Portfolio Depleted': 'N/A'
+        'Scenario Name': scenario_config['name'], 'Total Lifetime Taxes': total_taxes_paid, 'Total IRMAA Paid': total_irmaa_paid,
+        'Final Portfolio Value': final_portfolio_value, 'Present Value': present_value, 'CAGR': cagr, 'Age Portfolio Depleted': 'N/A'
     }
     details_df = pd.DataFrame(yearly_data_list)
     return summary, details_df
@@ -436,15 +452,9 @@ if __name__ == "__main__":
     summary_df['Total Lifetime Taxes'] = summary_df['Total Lifetime Taxes'].round().map('${:,.0f}'.format)
     summary_df['Total IRMAA Paid'] = summary_df['Total IRMAA Paid'].round().map('${:,.0f}'.format)
 
-    # Reorder columns for logical presentation
     column_order = [
-        'Scenario Name',
-        'Final Portfolio Value',
-        'Present Value',
-        'CAGR',
-        'Total Lifetime Taxes',
-        'Total IRMAA Paid',
-        'Age Portfolio Depleted'
+        'Scenario Name', 'Final Portfolio Value', 'Present Value', 'CAGR',
+        'Total Lifetime Taxes', 'Total IRMAA Paid', 'Age Portfolio Depleted'
     ]
     summary_df = summary_df[column_order]
     
