@@ -64,20 +64,60 @@ SCENARIOS_TO_RUN = [
         'name': '6. HIGH INFLATION (Max SS, No Roth)',
         'Mike_ss_age': 70, 'Cindy_ss_age': 70, 'roth_strategy': 'none',
         'inflation_rate_general': 0.045, 'inflation_rate_healthcare': 0.065
+    },
+    {
+        'name': '7.Match Bolden (Max SS, No Roth)',
+        'Mike_ss_age': 67, 'Cindy_ss_age': 67, 'roth_strategy': 'none',
+        'inflation_rate_general': 0.025, 'inflation_rate_healthcare': 0.065
     }
 ]
 
 # --- Helper Functions ---
 
 def load_data():
+    # Read all CSV files into pandas DataFrames first
     try:
-        # Read all CSV files into pandas DataFrames first
         config_df = pd.read_csv(INPUT_DIR / 'config.csv')
-        accounts_df = pd.read_csv(INPUT_DIR / 'accounts.csv', dtype={'balance': float, 'annual_rate': float})
-        income_df = pd.read_csv(INPUT_DIR / 'income_streams.csv', dtype={'annual_amount': float})
-        ss_df = pd.read_csv(INPUT_DIR / 'social_security.csv', dtype={'fra_benefit': float})
-        expenses_df = pd.read_csv(INPUT_DIR / 'annual_expenses.csv', dtype={'annual_amount': float})
 
+        account_column_names = [
+            'account_name',
+            'account_type',
+            'balance',
+            'annual_rate'
+        ]
+        expense_column_names = [
+            'expense_name', 'start_year', 'end_year', 'annual_amount',
+            'inflation_category', 'custom_inflation_rate'
+        ]
+        income_column_names = [
+            'stream_name', 'annual_amount', 'start_year', 'end_year', 
+            'is_inflation_adjusted'
+        ]
+        ss_column_names = [
+            'person_name', 'fra_benefit', 'fra_age'
+        ]
+        accounts_df = pd.read_csv(
+            INPUT_DIR / 'accounts.csv',
+            names=account_column_names, # Use our defined names
+            header=0,                   # Treat row 0 as a header to be replaced
+            dtype={'annual_rate': float}
+        )
+        income_df = pd.read_csv(
+            INPUT_DIR / 'income_streams.csv',
+            names=income_column_names, header=0,
+            dtype={'annual_amount': float}
+        )
+        ss_df = pd.read_csv(
+            INPUT_DIR / 'social_security.csv',
+            names=ss_column_names, header=0,
+            dtype={'fra_benefit': float}
+        )
+        expenses_df = pd.read_csv(
+            INPUT_DIR / 'annual_expenses.csv',
+            names=expense_column_names, header=0,
+            dtype={'annual_amount': float}
+        )
+ 
         # Strip whitespace from all string/object columns in each DataFrame
         for df in [config_df, accounts_df, income_df, ss_df, expenses_df]:
             string_columns = df.select_dtypes(include=['object']).columns
@@ -170,6 +210,8 @@ def plot_savings_breakdown(df, scenario_name, output_dir):
 
 def run_single_scenario(scenario_config):
     config_df, accounts_df, income_df, ss_df, expenses_df = load_data()
+    initial_portfolio_value = accounts_df['balance'].sum() # Capture initial value
+
     if 'custom_inflation_rate' not in expenses_df.columns:
         expenses_df['custom_inflation_rate'] = pd.NA
     expenses_df['custom_inflation_rate'] = pd.to_numeric(expenses_df['custom_inflation_rate'], errors='coerce')
@@ -201,7 +243,6 @@ def run_single_scenario(scenario_config):
         for idx, row in expenses_df.iterrows():
             if current_year > row['start_year']:
                 rate = row['custom_inflation_rate'] if pd.notna(row['custom_inflation_rate']) else (inf_health if str(row['inflation_category']).strip().title() == 'Healthcare' else inf_general)
-                print(rate)
                 expenses_df.loc[idx, 'annual_amount'] *= (1 + rate)
         if current_age > scenario_config[person1_ss_age_key]:
             person1_ss_benefit *= (1 + inf_general)
@@ -243,7 +284,7 @@ def run_single_scenario(scenario_config):
             accounts_df.loc[accounts_df['account_type'] == 'Roth', 'balance'] += roth_conversion_amount
         
         # --- Account Growth ---
-        accounts_df['balance'] *= (1 + accounts_df['annual_growth_rate'])
+        accounts_df['balance'] *= (1 + accounts_df['annual_rate'])
         
         income_on_accounts = 0
         for index, row in start_of_year_balances.iterrows():
@@ -321,11 +362,45 @@ def run_single_scenario(scenario_config):
         
         # Check if portfolio was depleted (leaving a small buffer for float precision)
         if withdrawn_so_far < cash_needed_from_portfolio - 1:
-            summary = {'Scenario Name': scenario_config['name'], 'Total Lifetime Taxes': total_taxes_paid, 'Total IRMAA Paid': total_irmaa_paid, 'Final Portfolio Value': 0, 'Age Portfolio Depleted': current_age}
             details_df = pd.DataFrame(yearly_data_list)
+            summary = {
+                'Scenario Name': scenario_config['name'],
+                'Total Lifetime Taxes': total_taxes_paid,
+                'Total IRMAA Paid': total_irmaa_paid,
+                'Final Portfolio Value': 0,
+                'Present Value': 0, # PV is 0 if final value is 0
+                'CAGR': -1.0, # -100% CAGR if portfolio is depleted
+                'Age Portfolio Depleted': current_age
+            }
+            print("***********************************************************************")
+            print(f"You have run out of money in {current_year} at the age of {current_age}.")
+            print("***********************************************************************")
             return summary, details_df
-            
-    summary = {'Scenario Name': scenario_config['name'], 'Total Lifetime Taxes': total_taxes_paid, 'Total IRMAA Paid': total_irmaa_paid, 'Final Portfolio Value': accounts_df['balance'].sum(), 'Age Portfolio Depleted': 'N/A'}
+
+    # --- Calculations for surviving portfolios ---
+    final_portfolio_value = accounts_df['balance'].sum()
+    
+    # Calculate Present Value of Final Portfolio
+    if projection_years > 0:
+        present_value = final_portfolio_value / ((1 + inf_general) ** projection_years)
+    else:
+        present_value = final_portfolio_value
+
+    # Calculate CAGR
+    if projection_years > 0 and initial_portfolio_value > 0:
+        cagr = (final_portfolio_value / initial_portfolio_value) ** (1 / projection_years) - 1
+    else:
+        cagr = 0.0 # No growth if no time or no initial investment
+
+    summary = {
+        'Scenario Name': scenario_config['name'],
+        'Total Lifetime Taxes': total_taxes_paid,
+        'Total IRMAA Paid': total_irmaa_paid,
+        'Final Portfolio Value': final_portfolio_value,
+        'Present Value': present_value,
+        'CAGR': cagr,
+        'Age Portfolio Depleted': 'N/A'
+    }
     details_df = pd.DataFrame(yearly_data_list)
     return summary, details_df
 
@@ -353,9 +428,25 @@ if __name__ == "__main__":
         plot_savings_breakdown(details_df, scenario['name'], PLOT_DIR)
         
     summary_df = pd.DataFrame(all_summary_results)
+    
+    # --- Format and Reorder Columns for Final Report ---
+    summary_df['Present Value'] = summary_df['Present Value'].round().map('${:,.0f}'.format)
+    summary_df['Final Portfolio Value'] = summary_df['Final Portfolio Value'].round().map('${:,.0f}'.format)
+    summary_df['CAGR'] = summary_df['CAGR'].map('{:.2%}'.format)
     summary_df['Total Lifetime Taxes'] = summary_df['Total Lifetime Taxes'].round().map('${:,.0f}'.format)
     summary_df['Total IRMAA Paid'] = summary_df['Total IRMAA Paid'].round().map('${:,.0f}'.format)
-    summary_df['Final Portfolio Value'] = summary_df['Final Portfolio Value'].round().map('${:,.0f}'.format)
+
+    # Reorder columns for logical presentation
+    column_order = [
+        'Scenario Name',
+        'Final Portfolio Value',
+        'Present Value',
+        'CAGR',
+        'Total Lifetime Taxes',
+        'Total IRMAA Paid',
+        'Age Portfolio Depleted'
+    ]
+    summary_df = summary_df[column_order]
     
     print("\n--- FINAL SCENARIO COMPARISON REPORT ---")
     print(summary_df.to_string(index=False))
