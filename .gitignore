@@ -3,6 +3,7 @@
 # data and the reports generated from it.
 input_files/
 input_files_v10/
+input_files_prop/
 input_files_sample/samplefiles_untrack.zip
 reports/
 
